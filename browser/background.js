@@ -80,7 +80,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         case "AUDIT_PASSWORDS":
           console.log("[BG] Auditando contraseñas...");
-          result = await callApi("/password/audit", "GET");
+          result = await callApi("/audit", "GET");
           console.log("[BG] Auditoría completada:", result);
           break;
         case "DELETE_PASSWORD":

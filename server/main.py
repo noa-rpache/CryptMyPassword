@@ -109,7 +109,7 @@ Devuelve la lista de dominios con contraseñas comprometidas:
 """
 
 
-@app.get("/password/audit")
+@app.get("/audit")
 async def audit_passwords(api_key: str = Depends(verify_api_key)):
     results = []
 
