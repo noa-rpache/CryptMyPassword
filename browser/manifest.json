@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "CrypttMyPassword",
+  "name": "CryptMyPassword",
   "version": "1.0",
   "description": "Genera y guarda contraseñas usando API local",
   "permissions": ["activeTab"],
