@@ -272,3 +272,55 @@ class P2PClient:
         
         print(f"[{self.device_id}] ✅ Contraseña marcada como borrada: {site}:{user}")
         return True
+    
+    # -------------------
+    # Vault cifrado / descifrado
+    # -------------------
+    def encrypt_vault(self):
+        vault_json = self.vault.to_json()
+        key = sha256(self.master_password.encode()).digest()
+        return CryptoUtils.aes_gcm_encrypt(key, vault_json)
+
+    def decrypt_vault(self, vault_encrypted):
+        key = sha256(self.master_password.encode()).digest()
+        vault_json = CryptoUtils.aes_gcm_decrypt(key, vault_encrypted)
+        vault_data = json.loads(vault_json)
+        self.vault.version = vault_data["version"]
+        self.vault.timestamp = vault_data["timestamp"]
+        self.vault.entries = [VaultEntry(**e) for e in vault_data["entries"]]
+
+    # -------------------
+    # Token temporal
+    # -------------------
+    def generate_auth_token(self):
+        token = str(uuid.uuid4())
+        nonce = str(uuid.uuid4())
+        expiration = int(time.time()) + 120
+        message = (token + nonce).encode()
+        signature = self.device_priv.sign(message)
+        return {
+            "token": token,
+            "nonce": nonce,
+            "expiration": expiration,
+            "signature": signature.hex(),  # Convertir bytes a hex para JSON
+            "device_id": self.device_id
+        }
+
+    def validate_auth_token(self, token_data):
+        device_id = token_data["device_id"]
+        if device_id not in self.peers_pub_keys:
+            print(f"No se tiene la clave pública para {device_id}")
+            return False
+        pub_key = self.peers_pub_keys[device_id]
+        if int(time.time()) > token_data["expiration"]:
+            print("Token expirado")
+            return False
+        message = (token_data["token"] + token_data["nonce"]).encode()
+        try:
+            signature = bytes.fromhex(token_data["signature"])  # Convertir hex a bytes
+            pub_key.verify(signature, message)
+            print("Token válido")
+            return True
+        except Exception as e:
+            print(f"Firma inválida: {e}")
+            return False
