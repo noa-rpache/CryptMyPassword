@@ -1,0 +1,28 @@
+
+# Android/Gradle
+*.iml
+.gradle/
+build/
+local.properties
+*.keystore
+*.jks
+*.apk
+*.ap_*
+*.dex
+*.class
+*.log
+*.idea/
+*.hprof
+*.DS_Store
+
+# Docker
+*.pid
+docker-compose.override.yml
+
+# Otros
+*.orig
+*.bak
+*.tmp
+
+# VSCode
+.vscode/
