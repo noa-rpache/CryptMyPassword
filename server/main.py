@@ -8,12 +8,12 @@ from pydantic.main import BaseModel
 from pymongo import MongoClient
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "gen_password"))
-from password_manager import generate_secure_password, check_hibp  # noqa: E402
 from entropy_engine import (  # noqa: E402
+    _get_mongo_collection,
     is_quantum_worker_alive,
     start_quantum_refresh_worker,
-    _get_mongo_collection,
 )
+from password_manager import check_hibp, generate_secure_password  # noqa: E402
 
 ##### MODEL
 
@@ -114,11 +114,13 @@ async def audit_passwords():
     for doc in collection.find():
         is_pwned, count = check_hibp(doc["password"])
         if is_pwned:
-            results.append({
-                "domain": doc["_id"],
-                "user": doc["user"],
-                "breaches": count,
-            })
+            results.append(
+                {
+                    "domain": doc["_id"],
+                    "user": doc["user"],
+                    "breaches": count,
+                }
+            )
 
     return results
 
@@ -176,6 +178,34 @@ async def save_password(content: FullItem):
     # return {"user": content.user, "password": content.password}
 
 
+"""
+Eliminar una contraseña guardada para un dominio específico.
+
+El parámetro debe ser el dominio a eliminar.
+
+Ejemplo: DELETE /password/www.gmail.com
+
+"""
+
+
+@app.delete("/password/{domain}")
+async def delete_password(domain: str):
+    print(f"/password/delete {domain}")
+
+    result = collection.delete_one({"_id": domain})
+
+    if result.deleted_count == 0:
+        return {
+            "success": False,
+            "message": f"No se encontró contraseña para el dominio: {domain}",
+            "domain": domain,
+        }
+
+    return {
+        "success": True,
+        "message": f"Contraseña eliminada para el dominio: {domain}",
+        "domain": domain,
+    }
 
 
 ## SYNCHRONISATION

@@ -70,6 +70,11 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
           result = await callApi("/password/audit", "GET");
           console.log("[BG] Auditoría completada:", result);
           break;
+        case "DELETE_PASSWORD":
+          console.log("[BG] Eliminando contraseña:", message.domain);
+          result = await callApi(`/password/${message.domain}`, "DELETE");
+          console.log("[BG] Contraseña eliminada:", result);
+          break;
         default:
           console.warn("[BG] Tipo de mensaje desconocido:", message.type);
       }

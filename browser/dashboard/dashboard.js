@@ -69,11 +69,6 @@ function sendMessageToBackground(message) {
 
 //------------------------------------------------------
 
-function copyPassword(password) {
-  navigator.clipboard.writeText(password);
-  alert("Contraseña copiada al portapapeles");
-}
-
 function togglePassword(input, btn) {
   if (input.type === "password") {
     input.type = "text";
@@ -81,6 +76,49 @@ function togglePassword(input, btn) {
   } else {
     input.type = "password";
     btn.textContent = "👁";
+  }
+}
+
+function copyPassword(password) {
+  navigator.clipboard.writeText(password);
+  alert("Contraseña copiada al portapapeles");
+}
+
+async function deletePassword(domain) {
+  console.log("[DELETE] Intentando eliminar contraseña para:", domain);
+
+  // Confirmación con popup
+  const confirmed = confirm(
+    `⚠️ ¿Estás seguro de que deseas eliminar la contraseña para ${domain}?\n\nEsta acción no se puede deshacer.`,
+  );
+
+  if (!confirmed) {
+    console.log("[DELETE] Usuario canceló la eliminación");
+    return;
+  }
+
+  try {
+    console.log("[DELETE] Enviando solicitud de eliminación al background...");
+    const result = await sendMessageToBackground({
+      type: "DELETE_PASSWORD",
+      domain: domain,
+    });
+
+    console.log("[DELETE] Resultado:", result);
+
+    if (result && result.success) {
+      console.log("[DELETE] Contraseña eliminada exitosamente");
+      alert(`Contraseña de ${domain} eliminada exitosamente.`);
+
+      // Recargar la tabla de contraseñas
+      loadPasswords();
+    } else {
+      console.error("[DELETE] Error al eliminar:", result?.message);
+      alert(`❌ Error al eliminar: ${result?.message || "Error desconocido"}`);
+    }
+  } catch (err) {
+    console.error("[DELETE] Error eliminando contraseña:", err);
+    alert("❌ Error al eliminar la contraseña. Intenta de nuevo.");
   }
 }
 
@@ -99,6 +137,7 @@ const createPasswordRowHTML = (pw) => {
           <input type="password" value="${pw.password}" readonly>
           <button class="toggle-password">👁</button>
           <button class="copy-password">📋</button>
+          <button class="delete-password">🗑️</button>
           ${breachBadge}
         </div>
       </td>
@@ -129,11 +168,16 @@ async function loadPasswords() {
         const input = cell.querySelector("input");
         const toggleBtn = cell.querySelector(".toggle-password");
         const copyBtn = cell.querySelector(".copy-password");
+        const deleteBtn = cell.querySelector(".delete-password");
+        const domain = cell
+          .closest("tr")
+          .querySelector("td:first-child").textContent;
 
         toggleBtn.addEventListener("click", () =>
           togglePassword(input, toggleBtn),
         );
         copyBtn.addEventListener("click", () => copyPassword(input.value));
+        deleteBtn.addEventListener("click", () => deletePassword(domain));
       });
     } else {
       // Mostrar mensaje si no hay contraseñas
@@ -234,15 +278,9 @@ async function verifyPasswords() {
     verifyBtn.textContent = "Verificando...";
 
     console.log("[VERIFY] Enviando solicitud AUDIT_PASSWORDS al background...");
-    // const auditResults = await sendMessageToBackground({
-    //   type: "AUDIT_PASSWORDS",
-    // });
-    const auditResults = [
-      {
-        domain: "www.linkedin.com",
-        breaches: 2,
-      },
-    ];
+    const auditResults = await sendMessageToBackground({
+      type: "AUDIT_PASSWORDS",
+    });
 
     console.log("[VERIFY] Resultados de auditoría recibidos:", auditResults);
     const breachedDomains = {};
