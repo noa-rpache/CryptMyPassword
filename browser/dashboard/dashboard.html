@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="style.css" />
+        <title>CryptMyPassword</title>
+    </head>
+    <body>
+        <header>
+            <h1>CryptMyPassword</h1>
+            <button id="verify-btn">Verificar contraseñas</button>
+        </header>
+
+        <div class="container">
+            <!-- Columna izquierda: tabla de contraseñas -->
+            <div class="left-column">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Dominio</th>
+                            <th>Usuario</th>
+                            <th>Contraseña</th>
+                        </tr>
+                    </thead>
+                    <tbody id="password-table"></tbody>
+                </table>
+            </div>
+
+            <!-- Columna derecha: botones y dispositivos -->
+            <div class="right-column">
+                <div class="right-buttons">
+                    <button id="sync-btn">Iniciar sincronización</button>
+                    <button id="refresh-btn">Refrescar</button>
+                </div>
+                <div id="devices-section" class="hidden">
+                    <h4>Dispositivos disponibles</h4>
+                    <ul id="devices-list"></ul>
+                </div>
+            </div>
+        </div>
+
+        <script src="dashboard.js"></script>
+    </body>
+</html>

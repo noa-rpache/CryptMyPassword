@@ -5,7 +5,7 @@
   "description": "Genera y guarda contraseñas usando API local",
   "permissions": ["activeTab"],
   "background": {
-    "scripts": ["background.js"]
+    "scripts": ["background.js", "dashboard/dashboard.js"]
   },
   "content_scripts": [
     {

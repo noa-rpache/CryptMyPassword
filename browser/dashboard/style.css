@@ -1,0 +1,151 @@
+/* Reset y base */
+* {
+    box-sizing: border-box;
+}
+body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f5f5f5;
+}
+
+/* Header */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: #2c3e50;
+    color: white;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+header button {
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    background-color: #3498db;
+    color: white;
+}
+
+/* Layout principal */
+.container {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+}
+
+/* Columnas */
+.left-column,
+.right-column {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.left-column {
+    flex: 2;
+}
+
+.right-column {
+    flex: 1;
+}
+
+/* Tabla contraseñas */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+table th,
+table td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+.password-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.password-cell input {
+    border: none;
+    background: none;
+    font-family: monospace;
+    font-size: 1rem;
+}
+
+.password-cell button {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+/* Botones derecha */
+.right-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.right-buttons button {
+    flex: 1;
+    padding: 8px;
+    cursor: pointer;
+    border: 1px solid #3498db;
+    border-radius: 4px;
+    background: #3498db;
+    color: white;
+}
+
+/* Lista dispositivos */
+.devices {
+    margin-top: 10px;
+}
+
+.device-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.device-item button {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #2ecc71;
+    background-color: #2ecc71;
+    color: white;
+    cursor: pointer;
+}
+
+.hidden {
+    display: none;
+}
+
+/* Responsive: móvil */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+
+    /* Invertir orden: right-column arriba, left-column abajo */
+    .right-column {
+        order: 1; /* aparece primero */
+    }
+
+    .left-column {
+        order: 2; /* aparece después */
+    }
+}
