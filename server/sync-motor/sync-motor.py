@@ -175,3 +175,100 @@ class P2PClient:
     # -------------------
     def generate_password(self):
         return "PLACEHOLDER_PASSWORD"
+    
+
+    def add_new_password(self, site: str, user: str):
+        """
+        1️⃣ Genera la nueva contraseña
+        2️⃣ Crea la entrada en el vault con timestamp_mod
+        3️⃣ Actualiza metadata global (version + timestamp)
+        4️⃣ Cifra el vault con VaultKey derivada de MasterPassword + salt
+        5️⃣ Firma la metadata global
+        """
+        # 1️⃣ Generar contraseña
+        password = self.generate_password()
+
+        # 2️⃣ Crear entrada
+        entry = VaultEntry(site, user, password)
+        self.vault.entries.append(entry)        # se agrega la nueva entrada
+        self.vault.version += 1                  # incrementa la versión global
+        self.vault.timestamp = int(time.time())  # timestamp global actualizado
+
+        # 3️⃣ Salt aleatorio (si no existe)
+        if not hasattr(self, "vault_salt"):
+            self.vault_salt = os.urandom(16)
+
+        # 4️⃣ Derivar VaultKey usando Argon2id
+        vault_key = hash_secret_raw(
+            secret=self.master_password.encode(),
+            salt=self.vault_salt,
+            time_cost=2,
+            memory_cost=2**16,
+            parallelism=2,
+            hash_len=32,
+            type=Type.ID
+        )
+
+        # 5️⃣ Cifrar vault completo
+        vault_json = self.vault.to_json()
+        self.vault_encrypted = CryptoUtils.aes_gcm_encrypt(vault_key, vault_json)
+
+        # 6️⃣ Metadata global y firma
+        vault_hash = sha256(json.dumps(self.vault_encrypted).encode()).hexdigest()
+        message = (str(self.vault.version) + vault_hash).encode()
+        self.vault_signature = self.device_priv.sign(message)
+
+        print(f"[{self.device_id}] Nueva contraseña agregada para {site}:{user}")
+        return entry.password
+
+    def delete_password(self, site: str, user: str):
+        """
+        Marca una contraseña como borrada (soft delete)
+        1️⃣ Busca la entrada por site y user
+        2️⃣ Cambia su estado de "activo" a "borrado"
+        3️⃣ Actualiza timestamp_mod de esa entrada
+        4️⃣ Actualiza metadata global (version + timestamp)
+        5️⃣ Cifra el vault
+        6️⃣ Firma la metadata global
+        """
+        # 1️⃣ Buscar la entrada
+        entry = next((e for e in self.vault.entries if e.site == site and e.user == user), None)
+        
+        if not entry:
+            print(f"[{self.device_id}] ❌ No se encontró contraseña para {site}:{user}")
+            return False
+        
+        # 2️⃣ Cambiar estado a borrado
+        entry.state = "borrado"
+        entry.timestamp_mod = int(time.time())
+        
+        # 3️⃣ Actualizar metadata global
+        self.vault.version += 1
+        self.vault.timestamp = int(time.time())
+        
+        # 4️⃣ Salt aleatorio (si no existe)
+        if not hasattr(self, "vault_salt"):
+            self.vault_salt = os.urandom(16)
+        
+        # 5️⃣ Derivar VaultKey usando Argon2id
+        vault_key = hash_secret_raw(
+            secret=self.master_password.encode(),
+            salt=self.vault_salt,
+            time_cost=2,
+            memory_cost=2**16,
+            parallelism=2,
+            hash_len=32,
+            type=Type.ID
+        )
+        
+        # 6️⃣ Cifrar vault completo
+        vault_json = self.vault.to_json()
+        self.vault_encrypted = CryptoUtils.aes_gcm_encrypt(vault_key, vault_json)
+        
+        # 7️⃣ Metadata global y firma
+        vault_hash = sha256(json.dumps(self.vault_encrypted).encode()).hexdigest()
+        message = (str(self.vault.version) + vault_hash).encode()
+        self.vault_signature = self.device_priv.sign(message)
+        
+        print(f"[{self.device_id}] ✅ Contraseña marcada como borrada: {site}:{user}")
+        return True
