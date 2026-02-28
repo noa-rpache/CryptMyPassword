@@ -61,9 +61,8 @@ function showExistingPasswordNotice(field, existing, domain) {
   console.log("se ha apendeado el elemento");
 
   document.getElementById("use-saved-pass").addEventListener("click", () => {
-    console.log("clieck check");
     setNativeValue(field, existing.password);
-    notice.innerHTML = "✅ Contraseña aplicada";
+    notice.innerHTML = "Contraseña aplicada";
     setTimeout(() => notice.remove(), 1500);
   });
 }
@@ -88,25 +87,12 @@ function showGenerateNotice(field, domain) {
       const newPassObj = await sendMessageToBackground({
         type: "GENERATE_PASSWORD",
       });
-      const newPass = newPassObj?.password || "fallback1234";
+      const newPass = newPassObj?.password;
 
       setNativeValue(field, newPass);
 
-      // Intentar detectar usuario/email
-      const userField = document.querySelector(
-        'input[type="email"], input[name*="user"], input[name*="login"]',
-      );
-      const user = userField ? userField.value : "unknown";
-
-      await sendMessageToBackground({
-        type: "SAVE_PASSWORD",
-        domain,
-        user,
-        password: newPass,
-      });
-
-      notice.innerHTML = "Contraseña generada y guardada";
-      setTimeout(() => notice.remove(), 1500);
+      notice.innerHTML = "Contraseña generada.";
+      setTimeout(() => notice.remove(), 2000);
     });
 }
 
@@ -134,17 +120,19 @@ function showGenerateNotice(field, domain) {
 
   const form = passwordField.closest("form");
   if (form) {
-    form.addEventListener("submit", () => {
+    form.addEventListener("submit", async () => {
       const finalPassword = passwordField.value;
       const userField = detectUserFieldFromPassword(passwordField);
       const user = userField ? userField.value : null;
 
-      browser.runtime.sendMessage({
+      await sendMessageToBackground({
         type: "SAVE_PASSWORD",
         domain,
         user,
         password: finalPassword,
       });
+
+      console.log("Contraseña guardada.");
     });
   }
 })();
