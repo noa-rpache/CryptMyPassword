@@ -1,0 +1,27 @@
+services:
+  backend:
+    build: . # PARA QUE PILLE EL DOCKERFILE LOCAL
+    ports:
+      - "${EXPOSED_APP_PORT}:${SERVER_PORT_AT_CONTAINER}"
+    environment:
+      PORT: ${SERVER_PORT_AT_CONTAINER}
+      MONGO_URL: "mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@mongodb:27017"
+      DEBUG: ${DEBUG:-false}
+    depends_on:
+      db:
+        condition: service_started
+  db:
+    image: mongodb/mongodb-atlas-local
+    hostname: mongodb
+    environment:
+      - MONGODB_INITDB_ROOT_USERNAME=${MONGODB_USER}
+      - MONGODB_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD}
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
+      - db:/data/db
+      - configdb:/data/configdb
+      - mongot:/data/mongot
+volumes:
+  db:
+  configdb:
+  mongot:
