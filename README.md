@@ -1,5 +1,8 @@
 # CryptMyPassword
 
+## Configurar API_KEY
+Para que funcione correctamente la conexión, debes configurar el campo `API_KEY` en el .env de `/browser` y de `/server` con el mismo valor.
+
 ## Lanzar servidor
 
 ```bash
