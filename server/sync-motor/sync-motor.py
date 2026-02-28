@@ -324,3 +324,35 @@ class P2PClient:
         except Exception as e:
             print(f"Firma inválida: {e}")
             return False
+
+# -------------------
+    # Merge
+    # -------------------
+
+    def merge_vaults(self, peer_vault_encrypted):
+        """Descifra vault del peer (cifrado con master_password) y hace merge"""
+        key = sha256(self.master_password.encode()).digest()
+        peer_vault_json = CryptoUtils.aes_gcm_decrypt(key, peer_vault_encrypted)
+        peer_vault_data = json.loads(peer_vault_json)
+        print("vault que recibimos para el clonado " + peer_vault_json)
+        for entry in peer_vault_data["entries"]:
+            match = next((e for e in self.vault.entries if e.site == entry["site"] and e.user == entry["user"]), None)
+            if match:
+                if entry["timestamp_mod"] > match.timestamp_mod:
+                    match.password = entry["password"]
+                    match.state = entry["state"]
+                    match.timestamp_mod = entry["timestamp_mod"]
+            else:
+                new_entry = VaultEntry(entry["site"], entry["user"], entry["password"], entry["state"])
+                new_entry.timestamp_mod = entry["timestamp_mod"]
+                self.vault.entries.append(new_entry)
+        
+        # Actualizar versión y timestamp
+        if peer_vault_data["version"] > self.vault.version:
+            # El peer ya hizo merge primero, copia su versión (es la "canónica")
+            self.vault.version = peer_vault_data["version"]
+            self.vault.timestamp = peer_vault_data["timestamp"]
+        else:
+            # Nosotros hacemos merge primero, incrementar versión
+            self.vault.version = self.vault.version + 1
+            self.vault.timestamp = int(time.time())
