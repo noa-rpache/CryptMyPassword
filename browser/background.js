@@ -1,24 +1,37 @@
 // background.js
 
 var browser = browser || chrome;
-
-const api = "http://127.0.0.1:8000";
+const API_KEY = "mi-clave-super-secreta";
 
 async function callApi(endpoint, method = "GET", body = null) {
-  console.log("endpoint", endpoint);
-  console.log("method", method);
-  const options = { method };
+  const options = {
+    method,
+    headers: {
+      "X-API-Key": CONFIG.API_KEY,
+      "Content-Type": "application/json",
+    },
+  };
+
   if (body) {
-    options.headers = { "Content-Type": "application/json" };
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${api}${endpoint}`, options);
+  const response = await fetch(`${CONFIG.API_URL}${endpoint}`, options);
   if (!response.ok) {
-    console.error("API error:", response.status, await response.text());
-    return null;
+    const errorText = await response.text();
+    console.error("API error:", response.status, errorText);
+    return {
+      success: false,
+      message: `Error ${response.status}: ${errorText || "Error desconocido"}`,
+    };
   }
-  return await response.json();
+
+  try {
+    return await response.json();
+  } catch (err) {
+    console.error("Error parsing JSON response:", err);
+    return { success: true };
+  }
 }
 
 // Escucha mensajes del content script

@@ -5,18 +5,29 @@
   "description": "Genera y guarda contraseñas usando API local",
   "permissions": ["activeTab"],
   "background": {
-    "scripts": ["background.js", "dashboard/dashboard.js"]
+    "scripts": [
+      "env-loader.js",
+      "config.js",
+      "background.js",
+      "dashboard/dashboard.js"
+    ]
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["env-loader.js", "config.js", "content.js"],
       "css": ["style.css"]
     }
   ],
   "host_permissions": [
     "http://127.0.0.1:8000/*",
     "http://127.0.0.1:8000/synchronise"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [".env"],
+      "matches": ["<all_urls>"]
+    }
   ],
   "action": {
     "default_icon": "assets/icon-512.png"

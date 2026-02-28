@@ -87,9 +87,8 @@ function copyPassword(password) {
 async function deletePassword(domain) {
   console.log("[DELETE] Intentando eliminar contraseña para:", domain);
 
-  // Confirmación con popup
   const confirmed = confirm(
-    `⚠️ ¿Estás seguro de que deseas eliminar la contraseña para ${domain}?\n\nEsta acción no se puede deshacer.`,
+    `¿Estás seguro de que deseas eliminar la contraseña para ${domain}?\n\nEsta acción no se puede deshacer.`,
   );
 
   if (!confirmed) {
@@ -245,7 +244,12 @@ async function loadDevices() {
 
       if (!Array.isArray(devices) || devices.length === 0) {
         console.log("[DASHBOARD] No hay dispositivos o no es array");
-        section.classList.add("hidden");
+        container.innerHTML = `
+          <div style="text-align: center; padding: 20px; color: #999;">
+            No hay dispositivos disponibles
+          </div>
+        `;
+        section.classList.remove("hidden");
         return;
       }
 
@@ -335,8 +339,8 @@ async function verifyPasswords() {
 
     const mensaje =
       totalBreached > 0
-        ? `⚠️ Se encontraron ${totalBreached} contraseña(s) comprometida(s). Las filas en rojo requieren atención.`
-        : "✅ ¡Excelente! Todas tus contraseñas están seguras.";
+        ? `Se encontraron ${totalBreached} contraseña(s) comprometida(s). Las filas en rojo requieren atención.`
+        : "Todas tus contraseñas están seguras.";
 
     console.log("[VERIFY] Mostrando alerta:", mensaje);
     alert(mensaje);
@@ -351,7 +355,7 @@ async function verifyPasswords() {
 
     verifyBtn.textContent = "Verificar contraseñas";
     console.log("[VERIFY] Texto del botón restaurado");
-    console.log("[VERIFY] ✅ Verificación completada");
+    console.log("[VERIFY] Verificación completada");
   } catch (err) {
     console.error("[VERIFY] ❌ Error verificando contraseñas:", err);
     console.error("[VERIFY] Stack:", err.stack);

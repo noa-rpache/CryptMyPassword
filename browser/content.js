@@ -46,8 +46,6 @@ function detectUserFieldFromPassword(passwordField) {
 function showExistingPasswordNotice(field, existing, domain) {
   if (document.getElementById("secure-pass-notice")) return;
 
-  console.log("primer if check");
-
   const notice = document.createElement("div");
   notice.id = "secure-pass-notice";
   notice.innerHTML = `
@@ -58,8 +56,6 @@ function showExistingPasswordNotice(field, existing, domain) {
   `;
 
   document.body.appendChild(notice);
-  console.log("se ha apendeado el elemento");
-
   document.getElementById("use-saved-pass").addEventListener("click", () => {
     setNativeValue(field, existing.password);
     notice.innerHTML = "Contraseña aplicada";
@@ -101,20 +97,16 @@ function showGenerateNotice(field, domain) {
   const passwordField = document.querySelector('input[type="password"]');
   if (!passwordField) return;
 
-  console.log("hay campo de contraseña");
   const domain = window.location.hostname;
 
   const existing = await sendMessageToBackground({
     type: "GET_PASSWORD",
     domain,
   });
-  console.log("se ha enviado el mensaje");
 
   if (existing && existing.password) {
-    console.log("Hay contraseña del sitio");
     showExistingPasswordNotice(passwordField, existing, domain);
   } else {
-    console.log("No hay contraseña del sitio");
     showGenerateNotice(passwordField, domain);
   }
 
