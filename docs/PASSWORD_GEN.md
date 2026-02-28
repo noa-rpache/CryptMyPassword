@@ -18,7 +18,6 @@ The generator aggregates entropy from three independent physical and pseudo-rand
     - On success: fetches a new 1024-byte pool, persists it to MongoDB, then waits 15 minutes before the next attempt.
     - On failure: waits 90 seconds and retries. Continues retrying every 90 seconds until the API responds successfully, then resumes the normal 15-minute interval.
   - The pool is cached in MongoDB (`quantum_entropy_cache` collection) to respect API rate limits and persist across server restarts.
-  - Validity window: 12 hours. Beyond this threshold the cache is considered expired and a synchronous fetch is attempted at generation time if the background worker has not yet succeeded.
   - **Generation time**: A 32-byte slice is selected from the cached pool using a random offset derived from `os.urandom`. This ensures different passwords generated within the same refresh window consume distinct quantum segments.
 - **Failover chain**:
   1. Fresh MongoDB cache (normal path, no network call at generation time).
