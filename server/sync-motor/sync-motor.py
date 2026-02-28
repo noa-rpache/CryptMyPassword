@@ -623,3 +623,237 @@ def synchronize_with_peer(self, peer_ip, peer_port):
             traceback.print_exc()
         finally:
             sock.close()
+
+
+if __name__ == "__main__":
+    print("="*70)
+    print("🔐 SISTEMA P2P DE SINCRONIZACIÓN DE CONTRASEÑAS")
+    print("="*70 + "\n")
+    
+    # Crear dos dispositivos con la misma contraseña maestra
+    master_password = "mi_master_password"
+    device_a = P2PClient("DeviceA", master_password, listen_port=5001)
+    device_b = P2PClient("DeviceB", master_password, listen_port=5002)
+    
+    # Darles tiempo para que inicien los hilos de escucha
+    time.sleep(1)
+    
+    print("\n" + "="*70)
+    print("1️⃣  INTERCAMBIANDO CLAVES PÚBLICAS ENTRE DISPOSITIVOS")
+    print("="*70 + "\n")
+    
+    # DeviceA anuncia su clave pública
+    announcement_a = device_a.broadcast_announcement()
+    device_b.receive_announcement(announcement_a)
+    print(f"✅ DeviceB recibió clave pública de DeviceA")
+    
+    # DeviceB anuncia su clave pública
+    announcement_b = device_b.broadcast_announcement()
+    device_a.receive_announcement(announcement_b)
+    print(f"✅ DeviceA recibió clave pública de DeviceB\n")
+    
+    time.sleep(1)
+    
+    print("="*70)
+    print("2️⃣  DEVICEA AGREGA UNA CONTRASEÑA (gmail.com)")
+    print("="*70 + "\n")
+    
+    pwd_a = device_a.add_new_password("gmail.com", "juan@example.com")
+    print(f"✅ DeviceA agregó: gmail.com\n")
+    
+    print("="*70)
+    print("3️⃣  DEVICEB AGREGA OTRA CONTRASEÑA (github.com)")
+    print("="*70 + "\n")
+    
+    pwd_b = device_b.add_new_password("github.com", "juan_github")
+    print(f"✅ DeviceB agregó: github.com\n")
+    
+    # Mostrar estado antes de sincronizar
+    print("="*70)
+    print("📋 ESTADO ANTES DE SINCRONIZAR")
+    print("="*70 + "\n")
+    
+    print("📋 DEVICEA (ANTES):")
+    metadata_a = device_a.get_metadata()
+    vault_a = json.loads(device_a.vault.to_json())
+    print(f"  - Version: {metadata_a['version']}")
+    print(f"  - Timestamp: {vault_a['timestamp']}")
+    print(f"  - Contraseñas: {len(vault_a['entries'])}")
+    print(f"  - Hash: {metadata_a['hash']}")
+    for entry in vault_a['entries']:
+        print(f"\n    Site: {entry['site']}")
+        print(f"    User: {entry['user']}")
+        print(f"    Password: {entry['password']}")
+        print(f"    State: {entry['state']}")
+        print(f"    Timestamp Mod: {entry['timestamp_mod']}")
+    
+    print("\n📋 DEVICEB (ANTES):")
+    metadata_b = device_b.get_metadata()
+    vault_b = json.loads(device_b.vault.to_json())
+    print(f"  - Version: {metadata_b['version']}")
+    print(f"  - Timestamp: {vault_b['timestamp']}")
+    print(f"  - Contraseñas: {len(vault_b['entries'])}")
+    print(f"  - Hash: {metadata_b['hash']}")
+    for entry in vault_b['entries']:
+        print(f"\n    Site: {entry['site']}")
+        print(f"    User: {entry['user']}")
+        print(f"    Password: {entry['password']}")
+        print(f"    State: {entry['state']}")
+        print(f"    Timestamp Mod: {entry['timestamp_mod']}")
+    
+    time.sleep(1)
+    
+    print("\n" + "="*70)
+    print("4️⃣  SINCRONIZANDO: DEVICEA → DEVICEB")
+    print("="*70 + "\n")
+    
+    device_a.synchronize_with_peer("127.0.0.1", 5002)
+    time.sleep(1)
+    
+    print("\n" + "="*70)
+    print("✅ ESTADO FINAL DESPUÉS DE SINCRONIZACIÓN")
+    print("="*70 + "\n")
+    
+    print("📋 DEVICEA (DESPUÉS):")
+    metadata_a_final = device_a.get_metadata()
+    vault_a_final = json.loads(device_a.vault.to_json())
+    print(f"  - Version: {metadata_a_final['version']}")
+    print(f"  - Timestamp: {vault_a_final['timestamp']}")
+    print(f"  - Contraseñas: {len(vault_a_final['entries'])}")
+    print(f"  - Hash: {metadata_a_final['hash']}")
+    for entry in vault_a_final['entries']:
+        print(f"\n    Site: {entry['site']}")
+        print(f"    User: {entry['user']}")
+        print(f"    Password: {entry['password']}")
+        print(f"    State: {entry['state']}")
+        print(f"    Timestamp Mod: {entry['timestamp_mod']}")
+    
+    print("\n📋 DEVICEB (DESPUÉS):")
+    metadata_b_final = device_b.get_metadata()
+    vault_b_final = json.loads(device_b.vault.to_json())
+    print(f"  - Version: {metadata_b_final['version']}")
+    print(f"  - Timestamp: {vault_b_final['timestamp']}")
+    print(f"  - Contraseñas: {len(vault_b_final['entries'])}")
+    print(f"  - Hash: {metadata_b_final['hash']}")
+    for entry in vault_b_final['entries']:
+        print(f"\n    Site: {entry['site']}")
+        print(f"    User: {entry['user']}")
+        print(f"    Password: {entry['password']}")
+        print(f"    State: {entry['state']}")
+        print(f"    Timestamp Mod: {entry['timestamp_mod']}")
+    
+    # Verificar sincronización
+    print("\n" + "="*70)
+    print("🔍 VERIFICACIÓN DE SINCRONIZACIÓN")
+    print("="*70)
+    
+    devicea_sites = {e['site'] for e in vault_a_final['entries']}
+    deviceb_sites = {e['site'] for e in vault_b_final['entries']}
+    
+    if devicea_sites == deviceb_sites and len(devicea_sites) == 2:
+        print("✅ ¡SINCRONIZACIÓN EXITOSA!")
+        print(f"   Ambos dispositivos tienen las mismas contraseñas:")
+        for site in sorted(devicea_sites):
+            print(f"   • {site}")
+        print(f"   Hashes coinciden: {metadata_a_final['hash'] == metadata_b_final['hash']}")
+        print(f"   Versiones iguales: {metadata_a_final['version'] == metadata_b_final['version']}")
+    else:
+        print("❌ Error: Las contraseñas no se sincronizaron correctamente")
+        print(f"   DeviceA sites: {devicea_sites}")
+        print(f"   DeviceB sites: {deviceb_sites}")
+    
+    time.sleep(1)
+    
+    print("\n" + "="*70)
+    print("5️⃣  DEVICEB BORRA UNA CONTRASEÑA (github.com)")
+    print("="*70 + "\n")
+    
+    device_b.delete_password("github.com", "juan_github")
+    print(f"✅ DeviceB marcó como borrada: github.com\n")
+    
+    # Mostrar estado antes de segunda sincronización
+    print("="*70)
+    print("📋 ESTADO ANTES DE SEGUNDA SINCRONIZACIÓN")
+    print("="*70 + "\n")
+    
+    print("📋 DEVICEA (ANTES):")
+    metadata_a2 = device_a.get_metadata()
+    vault_a2 = json.loads(device_a.vault.to_json())
+    print(f"  - Version: {metadata_a2['version']}")
+    print(f"  - Timestamp: {vault_a2['timestamp']}")
+    print(f"  - Contraseñas: {len(vault_a2['entries'])}")
+    print(f"  - Hash: {metadata_a2['hash']}")
+    for entry in vault_a2['entries']:
+        print(f"\n    Site: {entry['site']}")
+        print(f"    State: {entry['state']}")
+        print(f"    Timestamp Mod: {entry['timestamp_mod']}")
+    
+    print("\n📋 DEVICEB (ANTES):")
+    metadata_b2 = device_b.get_metadata()
+    vault_b2 = json.loads(device_b.vault.to_json())
+    print(f"  - Version: {metadata_b2['version']}")
+    print(f"  - Timestamp: {vault_b2['timestamp']}")
+    print(f"  - Contraseñas: {len(vault_b2['entries'])}")
+    print(f"  - Hash: {metadata_b2['hash']}")
+    for entry in vault_b2['entries']:
+        print(f"\n    Site: {entry['site']}")
+        print(f"    State: {entry['state']}")
+        print(f"    Timestamp Mod: {entry['timestamp_mod']}")
+    
+    time.sleep(1)
+    
+    print("\n" + "="*70)
+    print("6️⃣  SEGUNDA SINCRONIZACIÓN: DEVICEA → DEVICEB")
+    print("="*70 + "\n")
+    
+    device_a.synchronize_with_peer("127.0.0.1", 5002)
+    time.sleep(1)
+    
+    print("\n" + "="*70)
+    print("✅ ESTADO FINAL DESPUÉS DE SEGUNDA SINCRONIZACIÓN")
+    print("="*70 + "\n")
+    
+    print("📋 DEVICEA (DESPUÉS):")
+    metadata_a2_final = device_a.get_metadata()
+    vault_a2_final = json.loads(device_a.vault.to_json())
+    print(f"  - Version: {metadata_a2_final['version']}")
+    print(f"  - Timestamp: {vault_a2_final['timestamp']}")
+    print(f"  - Contraseñas: {len(vault_a2_final['entries'])}")
+    print(f"  - Hash: {metadata_a2_final['hash']}")
+    for entry in vault_a2_final['entries']:
+        print(f"\n    Site: {entry['site']}")
+        print(f"    State: {entry['state']}")
+        print(f"    Timestamp Mod: {entry['timestamp_mod']}")
+    
+    print("\n📋 DEVICEB (DESPUÉS):")
+    metadata_b2_final = device_b.get_metadata()
+    vault_b2_final = json.loads(device_b.vault.to_json())
+    print(f"  - Version: {metadata_b2_final['version']}")
+    print(f"  - Timestamp: {vault_b2_final['timestamp']}")
+    print(f"  - Contraseñas: {len(vault_b2_final['entries'])}")
+    print(f"  - Hash: {metadata_b2_final['hash']}")
+    for entry in vault_b2_final['entries']:
+        print(f"\n    Site: {entry['site']}")
+        print(f"    State: {entry['state']}")
+        print(f"    Timestamp Mod: {entry['timestamp_mod']}")
+    
+    # Verificar segunda sincronización
+    print("\n" + "="*70)
+    print("🔍 VERIFICACIÓN DE SEGUNDA SINCRONIZACIÓN")
+    print("="*70)
+    
+    devicea_entries = {(e['site'], e['state']) for e in vault_a2_final['entries']}
+    deviceb_entries = {(e['site'], e['state']) for e in vault_b2_final['entries']}
+    
+    if devicea_entries == deviceb_entries:
+        print("✅ ¡SEGUNDA SINCRONIZACIÓN EXITOSA!")
+        print(f"   Ambos dispositivos tienen el mismo estado:")
+        for site, state in sorted(devicea_entries):
+            print(f"   • {site}: {state}")
+        print(f"   Hashes coinciden: {metadata_a2_final['hash'] == metadata_b2_final['hash']}")
+        print(f"   Versiones iguales: {metadata_a2_final['version'] == metadata_b2_final['version']}")
+        print(f"   El soft delete se propagó correctamente: ✅")
+    else:
+        print("❌ Error: Los estados no coinciden")
+        print(f"   DeviceA: {devicea_entries}")
+        print(f"   DeviceB: {deviceb_entries}")
