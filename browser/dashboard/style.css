@@ -32,6 +32,17 @@ header button {
     border-radius: 4px;
     background-color: #3498db;
     color: white;
+    transition: all 0.3s ease;
+}
+
+header button:hover:not(:disabled) {
+    background-color: #2980b9;
+}
+
+header button:disabled {
+    background-color: #95a5a6;
+    cursor: not-allowed;
+    opacity: 0.8;
 }
 
 /* Layout principal */
@@ -106,6 +117,29 @@ table td {
     border-radius: 4px;
     background: #3498db;
     color: white;
+    transition: all 0.3s ease;
+}
+
+.right-buttons button:hover:not(:disabled) {
+    background-color: #2980b9;
+    border-color: #2980b9;
+}
+
+.right-buttons button:disabled {
+    background-color: #95a5a6;
+    border-color: #95a5a6;
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
 }
 
 /* Lista dispositivos */
@@ -128,6 +162,33 @@ table td {
     background-color: #2ecc71;
     color: white;
     cursor: pointer;
+}
+
+/* Estilos para contraseñas comprometidas */
+.password-breached {
+    background-color: #ffebee;
+}
+
+.password-breached td {
+    color: #c62828;
+    font-weight: 500;
+}
+
+.breach-badge {
+    display: inline-block;
+    background-color: #d32f2f;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    margin-left: 4px;
+    cursor: help;
+    white-space: nowrap;
+}
+
+.breach-badge:hover {
+    background-color: #b71c1c;
 }
 
 .hidden {

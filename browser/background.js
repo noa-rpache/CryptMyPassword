@@ -65,6 +65,11 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
           console.log("[BG] Dispositivo enlazado:", result);
           break;
+        case "AUDIT_PASSWORDS":
+          console.log("[BG] Auditando contraseñas...");
+          result = await callApi("/password/audit", "GET");
+          console.log("[BG] Auditoría completada:", result);
+          break;
         default:
           console.warn("[BG] Tipo de mensaje desconocido:", message.type);
       }

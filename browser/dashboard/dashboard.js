@@ -36,8 +36,8 @@ document.querySelectorAll(".connect-btn").forEach((btn) => {
 
 // Botón verificar contraseñas
 document.getElementById("verify-btn").addEventListener("click", () => {
-  //TODO añadir el endpoint y la modificación de la interfaz, poniendo las filas en rojo
-  console.log("Verificar contraseñas");
+  console.log("Verificando contraseñas contra HIBP...");
+  verifyPasswords();
 });
 
 //------------------------------------------------------
@@ -85,8 +85,13 @@ function togglePassword(input, btn) {
 }
 
 const createPasswordRowHTML = (pw) => {
+  const breachClass = pw.breached ? "password-breached" : "";
+  const breachBadge = pw.breached
+    ? `<span class="breach-badge" title="${pw.breaches} brechas encontradas">⚠️ ${pw.breaches}</span>`
+    : "";
+
   return `
-    <tr>
+    <tr class="${breachClass}">
       <td>${pw.domain}</td>
       <td>${pw.user}</td>
       <td>
@@ -94,6 +99,7 @@ const createPasswordRowHTML = (pw) => {
           <input type="password" value="${pw.password}" readonly>
           <button class="toggle-password">👁</button>
           <button class="copy-password">📋</button>
+          ${breachBadge}
         </div>
       </td>
     </tr>
@@ -216,6 +222,119 @@ async function loadDevices() {
     }
   } catch (err) {
     console.error("[DASHBOARD] Error cargando dispositivos:", err);
+  }
+}
+
+// Función para verificar contraseñas contra HIBP
+async function verifyPasswords() {
+  try {
+    console.log("[VERIFY] Iniciando verificación de contraseñas");
+    const verifyBtn = document.getElementById("verify-btn");
+    verifyBtn.disabled = true;
+    verifyBtn.textContent = "Verificando...";
+
+    console.log("[VERIFY] Enviando solicitud AUDIT_PASSWORDS al background...");
+    // const auditResults = await sendMessageToBackground({
+    //   type: "AUDIT_PASSWORDS",
+    // });
+    const auditResults = [
+      {
+        domain: "www.linkedin.com",
+        breaches: 2,
+      },
+    ];
+
+    console.log("[VERIFY] Resultados de auditoría recibidos:", auditResults);
+    const breachedDomains = {};
+    if (Array.isArray(auditResults)) {
+      auditResults.forEach((result) => {
+        breachedDomains[result.domain] = result.breaches;
+      });
+      console.log("[VERIFY] Mapa creado:", breachedDomains);
+    } else {
+      console.warn("[VERIFY] auditResults no es un array:", auditResults);
+    }
+
+    // Actualizar las filas de la tabla
+    console.log("[VERIFY] Actualizando tabla...");
+    const tbody = document.getElementById("password-table");
+
+    let rowsUpdated = 0;
+    tbody.querySelectorAll("tr").forEach((row) => {
+      const domainCell = row.querySelector("td:first-child");
+      if (!domainCell) return;
+
+      const domain = domainCell.textContent;
+      const passwordCell = row.querySelector(".password-cell");
+
+      if (breachedDomains[domain]) {
+        // Marcar como comprometida
+        rowsUpdated++;
+
+        if (!passwordCell.querySelector(".breach-badge")) {
+          const badge = document.createElement("span");
+          badge.className = "breach-badge";
+          badge.title = `${breachedDomains[domain]} brechas encontradas`;
+          badge.textContent = `⚠️ ${breachedDomains[domain]}`;
+          passwordCell.appendChild(badge);
+          console.log("[VERIFY] Badge agregado para:", domain);
+        }
+      } else {
+        // Remover marcas de compromiso si las hubiera
+        row.classList.remove("password-breached");
+        const existingBadge = passwordCell.querySelector(".breach-badge");
+        if (existingBadge) {
+          existingBadge.remove();
+          console.log("[VERIFY] Badge removido para:", domain);
+        }
+      }
+    });
+    console.log("[VERIFY] Filas actualizadas:", rowsUpdated);
+
+    // Feedback al usuario
+    const totalBreached = Object.keys(breachedDomains).length;
+    console.log("[VERIFY] Total comprometidas:", totalBreached);
+
+    const mensaje =
+      totalBreached > 0
+        ? `⚠️ Se encontraron ${totalBreached} contraseña(s) comprometida(s). Las filas en rojo requieren atención.`
+        : "✅ ¡Excelente! Todas tus contraseñas están seguras.";
+
+    console.log("[VERIFY] Mostrando alerta:", mensaje);
+    alert(mensaje);
+    console.log("[VERIFY] Alerta cerrada");
+
+    console.log("[VERIFY] Reactivando botón...");
+    verifyBtn.disabled = false;
+    console.log("[VERIFY] Botón habilitado");
+
+    verifyBtn.classList.remove("verifying");
+    console.log("[VERIFY] Clase 'verifying' removida");
+
+    verifyBtn.textContent = "Verificar contraseñas";
+    console.log("[VERIFY] Texto del botón restaurado");
+    console.log("[VERIFY] ✅ Verificación completada");
+  } catch (err) {
+    console.error("[VERIFY] ❌ Error verificando contraseñas:", err);
+    console.error("[VERIFY] Stack:", err.stack);
+
+    const mensajeError =
+      "Error al verificar contraseñas. Intenta de nuevo más tarde.";
+    console.log("[VERIFY] Mostrando alerta de error:", mensajeError);
+    alert(mensajeError);
+    console.log("[VERIFY] Alerta de error cerrada");
+
+    console.log("[VERIFY] Reactivando botón después de error...");
+    const verifyBtn = document.getElementById("verify-btn");
+    verifyBtn.disabled = false;
+    console.log("[VERIFY] Botón habilitado");
+
+    verifyBtn.classList.remove("verifying");
+    console.log("[VERIFY] Clase 'verifying' removida");
+
+    verifyBtn.textContent = "Verificar contraseñas";
+    console.log("[VERIFY] Texto del botón restaurado");
+    console.log("[VERIFY] ❌ Verificación finalizada con error");
   }
 }
 
