@@ -118,3 +118,60 @@ class Vault:
             "entries": sorted_entries
         })
         return sha256(vault_content.encode()).hexdigest()
+
+# -------------------------------
+# CLIENTE P2P
+# -------------------------------
+class P2PClient:
+    def __init__(self, device_id, master_password, listen_port=5000):
+        self.device_id = device_id
+        self.master_password = master_password
+        self.vault = Vault(device_id)
+
+        # Claves Ed25519
+        self.device_priv = Ed25519PrivateKey.generate()
+        self.device_pub = self.device_priv.public_key()
+
+        # Mapa peers: device_id -> Ed25519PublicKey
+        self.peers_pub_keys = {}
+
+        # Pre-inicializar parámetros DH (2048-bit) - esto tarda ~10-20s en la primera llamada
+        # Se hace aquí para evitar bloqueo durante la comunicación
+# No requiere inicialización con X25519 (instantáneo)
+        print(f"[{self.device_id}] ✅ Criptografía X25519 lista (instantáneo)")
+
+        # Configuración P2P
+        self.listen_port = listen_port
+        self.server_thread = threading.Thread(target=self.listen_peer)
+        self.server_thread.daemon = True
+        self.server_thread.start()
+
+    # -------------------
+    # Anuncio periódico de presencia
+    # -------------------
+    def broadcast_announcement(self):
+        """
+        Aquí simulamos el anuncio en LAN; en producción podrías usar UDP broadcast.
+        Devuelve dict que otros nodos deberían recibir.
+        """
+        announcement = {
+            "device_id": self.device_id,
+            "device_pub_bytes": self.device_pub.public_bytes_raw().hex(),
+            "timestamp": int(time.time())
+        }
+        return announcement
+
+    # -------------------
+    # Recibir anuncio de otro peer
+    # -------------------
+    def receive_announcement(self, announcement):
+        device_id = announcement["device_id"]
+        pub_bytes = bytes.fromhex(announcement["device_pub_bytes"])
+        pub_key = Ed25519PublicKey.from_public_bytes(pub_bytes)
+        self.peers_pub_keys[device_id] = pub_key
+
+    # -------------------
+    # Generación de contraseña (vacío)
+    # -------------------
+    def generate_password(self):
+        return "PLACEHOLDER_PASSWORD"
