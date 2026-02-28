@@ -356,3 +356,152 @@ class P2PClient:
             # Nosotros hacemos merge primero, incrementar versión
             self.vault.version = self.vault.version + 1
             self.vault.timestamp = int(time.time())
+# -------------------
+    # Comunicación P2P simple con sockets TCP
+    # -------------------
+    def listen_peer(self):
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(("0.0.0.0", self.listen_port))
+        server.listen(5)
+        print(f"[{self.device_id}] Escuchando en puerto {self.listen_port}")
+        while True:
+            client_sock, addr = server.accept()
+            threading.Thread(target=self.handle_peer_connection, args=(client_sock, addr)).start()
+
+    def handle_peer_connection(self, client_sock, addr):
+        """
+        Protocolo de sincronización P2P:
+        1. Recibe token (autenticación)
+        2. Establece canal seguro (DH)
+        3. Recibe metadata del peer
+        4. Compara metadatas
+        5. Decide si enviar/recibir vault
+        6. Realiza merge si es necesario
+        """
+        try:
+            # 1️⃣ Recibir primer mensaje: autenticación y metadata
+            data = client_sock.recv(65536)
+            msg = json.loads(data.decode())
+            
+            # Validar token
+            if not self.validate_auth_token(msg["auth_token"]):
+                print(f"[{self.device_id}] ❌ Token inválido de {addr}")
+                client_sock.close()
+                return
+            
+            # 2️⃣ Establecer canal seguro (X25519 efímero REAL)
+            peer_ephemeral_pub_bytes = bytes.fromhex(msg["ephemeral_pub"])
+            shared_secret, my_ephemeral_pub_bytes = self.establish_secure_channel(peer_ephemeral_pub_bytes)
+            print(f"[{self.device_id}] 🔐 Canal seguro X25519 establecido (servidor)")
+            print(f"[{self.device_id}] SharedSecret (hex): {shared_secret.hex()[:16]}...")
+            
+            # Derivar SessionKey: HKDF(SharedSecret, Token || Version || Timestamp)
+            auth_token_str = msg["auth_token"]["token"]
+            peer_version = msg.get("version", 0)
+            peer_timestamp = msg.get("timestamp", int(time.time()))
+            info = (auth_token_str + str(peer_version) + str(peer_timestamp)).encode()
+            session_key = CryptoUtils.hkdf(shared_secret, info)
+            print(f"[{self.device_id}] 🔑 SessionKey derivada: HKDF(SS, Token||Version||Timestamp)")
+            print(f"[{self.device_id}] SessionKey (hex): {session_key.hex()[:16]}...")
+            
+            # Enviar nuestra clave efímera X25519 pública
+            response_auth = {
+                "status": "authenticated",
+                "ephemeral_pub": my_ephemeral_pub_bytes.hex()
+            }
+            client_sock.send(json.dumps(response_auth).encode())
+            print(f"[{self.device_id}] 📤 Enviada clave efímera X25519 pública (hex)")
+            
+            # 3️⃣ Recibir metadata del peer (CIFRADA con SessionKey)
+            print(f"[{self.device_id}] ⏳ Esperando metadata cifrada del peer...")
+            data_metadata_enc = client_sock.recv(65536)
+            print(f"[{self.device_id}] 📥 Recibidos {len(data_metadata_enc)} bytes de metadata")
+            data_metadata_enc_dict = json.loads(data_metadata_enc.decode())
+            metadata_json = CryptoUtils.aes_gcm_decrypt(session_key, data_metadata_enc_dict)
+            peer_metadata = json.loads(metadata_json)
+            
+            print(f"\n[{self.device_id}] 📨 Recibida metadata de {peer_metadata['device_id']} (CIFRADA)")
+            print(f"  - Version peer: {peer_metadata['version']}")
+            print(f"  - Timestamp peer: {peer_metadata['timestamp']}")
+            
+            # 4️⃣ Obtener nuestra metadata
+            my_metadata = self.get_metadata()
+            print(f"[{self.device_id}] 📊 Comparando metadatas:")
+            print(f"  - Mi version: {my_metadata['version']}")
+            print(f"  - Mi timestamp: {my_metadata['timestamp']}")
+            
+            # 5️⃣ Comparar hashes y versiones
+            if peer_metadata["hash"] == my_metadata["hash"] and peer_metadata["version"] == my_metadata["version"]:
+                print(f"[{self.device_id}] ✅ Vaults sincronizados (hash = version igual)")
+                response_sync = {"status": "synchronized", "action": "nothing"}
+                client_sock.send(json.dumps(response_sync).encode())
+                client_sock.close()
+                return
+            
+            print(f"[{self.device_id}] ⚠️  Vaults diferentes → necesario merge")
+            
+            # 6️⃣ Comparar timestamps para decidir quién envía el vault
+            if my_metadata["timestamp"] > peer_metadata["timestamp"]:
+                # Mi timestamp es mayor → Le pido que envíe su vault
+                print(f"[{self.device_id}] 📥 Mi timestamp es mayor → Recibiendo vault de {peer_metadata['device_id']}")
+                response_sync = {"status": "merge_needed", "action": "send_vault"}
+                # Cifrar respuesta con SessionKey
+                response_sync_enc = CryptoUtils.aes_gcm_encrypt(session_key, json.dumps(response_sync))
+                client_sock.send(json.dumps(response_sync_enc).encode())
+                
+                # Recibir vault cifrado del peer (viene dentro de mensaje cifrado con SessionKey)
+                data_vault_enc = client_sock.recv(65536)
+                data_vault_enc_dict = json.loads(data_vault_enc.decode())
+                vault_json = CryptoUtils.aes_gcm_decrypt(session_key, data_vault_enc_dict)
+                response_vault = json.loads(vault_json)
+                peer_vault_enc = response_vault["vault_encrypted"]  # Dict con {nonce, ciphertext} - cifrado con master_password
+                
+                # Hacer el merge
+                print(f"[{self.device_id}] 🔀 Realizando merge...")
+                self.merge_vaults(peer_vault_enc)
+                
+                # Obtener metadata actualizada después del merge
+                merged_metadata = self.get_metadata()
+                
+                # Enviar vault mezclado de vuelta (CIFRADO con SessionKey)
+                my_vault_merged = self.encrypt_vault()
+                response_merged = {
+                    "status": "merge_complete",
+                    "vault_encrypted": my_vault_merged,
+                    "metadata": merged_metadata
+                }
+                response_merged_enc = CryptoUtils.aes_gcm_encrypt(session_key, json.dumps(response_merged, default=str))
+                client_sock.send(json.dumps(response_merged_enc).encode())
+                print(f"[{self.device_id}] ✅ Merge completado y vault enviado de vuelta")
+            else:
+                # Mi timestamp es menor → Le envío mi vault EN LA MISMA RESPUESTA
+                print(f"[{self.device_id}] 📤 Mi timestamp es menor → Enviando vault a {peer_metadata['device_id']}")
+                
+                # Obtener mi vault cifrado
+                my_vault_enc = self.encrypt_vault()
+                
+                # Enviar respuesta + vault en UN ÚNICO mensaje (CIFRADO con SessionKey)
+                response_sync = {
+                    "status": "merge_needed", 
+                    "action": "receive_vault",
+                    "vault_encrypted": my_vault_enc
+                }
+                response_sync_enc = CryptoUtils.aes_gcm_encrypt(session_key, json.dumps(response_sync))
+                client_sock.send(json.dumps(response_sync_enc).encode())
+                
+                # Recibir vault mezclado (CIFRADO con SessionKey)
+                data_merged_enc = client_sock.recv(65536)
+                data_merged_enc_dict = json.loads(data_merged_enc.decode())
+                merged_json = CryptoUtils.aes_gcm_decrypt(session_key, data_merged_enc_dict)
+                merged_response = json.loads(merged_json)
+                
+                # Actualizar con el vault mezclado
+                self.decrypt_vault(merged_response["vault_encrypted"])
+                print(f"[{self.device_id}] ✅ Vault mezclado recibido y actualizado")
+                
+        except Exception as e:
+            print(f"[{self.device_id}] ❌ Error en conexión: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            client_sock.close()
