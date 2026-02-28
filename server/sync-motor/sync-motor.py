@@ -505,3 +505,121 @@ class P2PClient:
             traceback.print_exc()
         finally:
             client_sock.close()
+
+def synchronize_with_peer(self, peer_ip, peer_port):
+        """
+        Protocolo de sincronización P2P (cliente):
+        1. Genera token temporal y clave efímera
+        2. Envía token para autenticación
+        3. Establece canal seguro (DH)
+        4. Envía metadata
+        5. Recibe respuesta indicando si debe enviar/recibir vault
+        6. Realiza merge según corresponda
+        """
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((peer_ip, peer_port))
+            print(f"\n[{self.device_id}] 🔗 Conectado a {peer_ip}:{peer_port}")
+            
+            # 1️⃣ Generar token y clave efímera X25519
+            auth_token = self.generate_auth_token()
+            my_ephemeral_priv, my_ephemeral_pub = CryptoUtils.generate_ephemeral_dh_keys()
+            my_ephemeral_pub_bytes = CryptoUtils.serialize_dh_public_key(my_ephemeral_pub)
+            
+            # 2️⃣ Enviar autenticación + metadata
+            my_metadata = self.get_metadata()
+            msg_auth = {
+                "auth_token": auth_token,
+                "ephemeral_pub": my_ephemeral_pub_bytes.hex(),
+                "device_id": self.device_id,
+                "version": my_metadata["version"],
+                "timestamp": my_metadata["timestamp"]
+            }
+            sock.send(json.dumps(msg_auth, default=str).encode())
+            print(f"[{self.device_id}] 📤 Enviado: token + clave efímera X25519 (hex)")
+            
+            # 3️⃣ Recibir respuesta de autenticación y establecer canal seguro X25519
+            data_auth = sock.recv(65536)
+            auth_response = json.loads(data_auth.decode())
+            peer_ephemeral_pub_bytes = bytes.fromhex(auth_response["ephemeral_pub"])
+            peer_ephemeral_pub = CryptoUtils.deserialize_dh_public_key(peer_ephemeral_pub_bytes)
+            
+            # Calcular SharedSecret: X25519(priv_mio, pub_peer)
+            shared_secret = CryptoUtils.dh_shared_secret(my_ephemeral_priv, peer_ephemeral_pub)
+            print(f"[{self.device_id}] 🔐 Canal seguro X25519 establecido (cliente)")
+            print(f"[{self.device_id}] SharedSecret (hex): {shared_secret.hex()[:16]}...")
+            
+            # Derivar SessionKey: HKDF(SharedSecret, Token || Version || Timestamp)
+            info = (auth_token["token"] + str(my_metadata["version"]) + str(my_metadata["timestamp"])).encode()
+            session_key = CryptoUtils.hkdf(shared_secret, info)
+            print(f"[{self.device_id}] 🔑 SessionKey derivada: HKDF(SS, Token||Version||Timestamp)")
+            print(f"[{self.device_id}] SessionKey (hex): {session_key.hex()[:16]}...")
+            
+            metadata_enc = CryptoUtils.aes_gcm_encrypt(session_key, json.dumps(my_metadata, default=str))
+            sock.send(json.dumps(metadata_enc).encode())
+            print(f"[{self.device_id}] 📤 Enviada metadata CIFRADA (version: {my_metadata['version']})")
+            
+            # 5️⃣ Recibir respuesta según comparación de metadata (CIFRADA con SessionKey)
+            data_sync_enc = sock.recv(65536)
+            data_sync_enc_dict = json.loads(data_sync_enc.decode())
+            sync_json = CryptoUtils.aes_gcm_decrypt(session_key, data_sync_enc_dict)
+            sync_response = json.loads(sync_json)
+            
+            if sync_response["status"] == "synchronized":
+                print(f"[{self.device_id}] ✅ Vaults ya sincronizados (sin cambios)")
+                sock.close()
+                return
+            
+            # 6️⃣ Procesar merge según acción del peer
+            if sync_response["action"] == "send_vault":
+                # El peer tiene timestamp mayor → Debo enviar mi vault
+                print(f"[{self.device_id}] 📤 Peer tiene timestamp mayor → Enviando vault...")
+                my_vault_enc = self.encrypt_vault()
+                
+                # Enviar vault JUNTO CON la acción en UN ÚNICO mensaje (CIFRADO con SessionKey)
+                response_with_vault = {
+                    "status": "merge_needed",
+                    "action": "send_vault",
+                    "vault_encrypted": my_vault_enc
+                }
+                response_with_vault_enc = CryptoUtils.aes_gcm_encrypt(session_key, json.dumps(response_with_vault))
+                sock.send(json.dumps(response_with_vault_enc).encode())
+                
+                # Recibir vault mezclado (CIFRADO con SessionKey)
+                data_merged_enc = sock.recv(65536)
+                data_merged_enc_dict = json.loads(data_merged_enc.decode())
+                merged_json = CryptoUtils.aes_gcm_decrypt(session_key, data_merged_enc_dict)
+                merged_response = json.loads(merged_json)
+                
+                # Actualizar con vault mezclado
+                self.merge_vaults(merged_response["vault_encrypted"])
+                print(f"[{self.device_id}] ✅ Sincronización completada (yo envié, peer hizo merge)")
+                
+            elif sync_response["action"] == "receive_vault":
+                # El peer tiene timestamp menor → Recibiré su vault en esta misma respuesta
+                print(f"[{self.device_id}] 📥 Peer tiene timestamp menor → Recibiendo vault...")
+                
+                # El vault ya viene en la respuesta (cifrada con SessionKey)
+                peer_vault_enc = sync_response["vault_encrypted"]
+                
+                # Hacer el merge
+                self.merge_vaults(peer_vault_enc)
+                
+                # Enviar vault mezclado de vuelta (CIFRADO con SessionKey)
+                merged_vault = self.encrypt_vault()
+                merged_metadata = self.get_metadata()
+                response_merged = {
+                    "status": "merge_complete",
+                    "vault_encrypted": merged_vault,
+                    "metadata": merged_metadata
+                }
+                response_merged_enc = CryptoUtils.aes_gcm_encrypt(session_key, json.dumps(response_merged, default=str))
+                sock.send(json.dumps(response_merged_enc).encode())
+                print(f"[{self.device_id}] ✅ Sincronización completada (yo recibí y hacé merge)")
+            
+        except Exception as e:
+            print(f"[{self.device_id}] ❌ Error sincronización: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            sock.close()
