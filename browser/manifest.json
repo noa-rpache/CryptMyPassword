@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "CrypttMyPassword",
+  "version": "1.0",
+  "description": "Genera y guarda contraseñas usando API local",
+  "permissions": ["activeTab"],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["style.css"]
+    }
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "http://127.0.0.1:8000/synchronise"
+  ],
+  "action": {
+    "default_icon": "assets/icon-512.png"
+  }
+}
