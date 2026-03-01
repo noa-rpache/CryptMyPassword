@@ -1,0 +1,126 @@
+<!--
+SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz.edu@gmail.com  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="style.css" />
+        <title>CryptMyPassword</title>
+    </head>
+    <body>
+        <header>
+            <h1>🔐 CryptMyPassword</h1>
+            <button id="verify-btn">Comprobar integridad</button>
+        </header>
+
+        <!-- Sección: Contraseñas -->
+        <section class="section passwords-section">
+            <div class="section-header">
+                <h2>Contraseñas guardadas</h2>
+            </div>
+            <div class="section-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Dominio</th>
+                            <th>Usuario</th>
+                            <th>Contraseña</th>
+                        </tr>
+                    </thead>
+                    <tbody id="password-table"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Sección: Sincronización WiFi / LAN -->
+        <section class="section sync-section">
+            <div class="section-header">
+                <h2>📡 Sincronización WiFi / LAN</h2>
+                <div id="my-device-info" class="my-device-info"></div>
+            </div>
+
+            <div class="sync-layout">
+                <!-- Peers descubiertos -->
+                <div class="sync-panel peers-panel">
+                    <div class="panel-header">
+                        <h3>Dispositivos en la red</h3>
+                        <div class="panel-actions">
+                            <button id="sync-btn">🔍 Buscar peers</button>
+                            <button id="refresh-btn">🔄 Refrescar</button>
+                        </div>
+                    </div>
+                    <div id="devices-list" class="devices-list">
+                        <div class="no-devices">
+                            Pulsa "Buscar peers" para descubrir dispositivos
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sincronizar -->
+                <div class="sync-panel connect-panel">
+                    <h3>Conectar con peer</h3>
+                    <p class="connect-hint">
+                        Selecciona un dispositivo de la lista o introduce la IP
+                        manualmente.
+                    </p>
+                    <div class="connect-form">
+                        <div class="form-row">
+                            <label for="manual-ip">Dirección IP</label>
+                            <input
+                                type="text"
+                                id="manual-ip"
+                                placeholder="ej: 192.168.1.50"
+                            />
+                        </div>
+                        <div class="form-row">
+                            <label for="manual-port">Puerto</label>
+                            <input
+                                type="number"
+                                id="manual-port"
+                                value="5000"
+                                min="1"
+                                max="65535"
+                            />
+                        </div>
+                        <button id="manual-sync-btn" class="connect-btn-main">Sincronizar</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sección: Sincronización Bluetooth -->
+        <section class="section ble-section">
+            <div class="section-header">
+                <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;opacity:0.6"><path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11"/></svg>Sincronización Bluetooth</h2>
+            </div>
+
+            <div class="ble-grid">
+                <!-- Enviar por BLE -->
+                <div class="glass-card ble-card">
+                    <h3>Enviar contraseñas</h3>
+                    <p class="ble-card-desc">Envía todas las contraseñas del vault a un dispositivo cercano vía BLE.</p>
+                    <button id="ble-send-btn" class="ble-btn ble-btn-send">Enviar por Bluetooth</button>
+                    <div id="ble-send-status" class="ble-status hidden"></div>
+                </div>
+
+                <!-- Recibir por BLE -->
+                <div class="glass-card ble-card">
+                    <h3>Recibir contraseñas</h3>
+                    <p class="ble-card-desc">Activa el servidor BLE para recibir contraseñas desde otro dispositivo cercano.</p>
+                    <div class="ble-receive-controls">
+                        <button id="ble-receive-btn" class="ble-btn ble-btn-receive">Activar recepción</button>
+                        <button id="ble-stop-btn" class="ble-btn ble-btn-stop hidden">Detener recepción</button>
+                    </div>
+                    <div id="ble-receive-status" class="ble-status hidden"></div>
+                </div>
+            </div>
+        </section>
+
+        <script src="dashboard.js"></script>
+    </body>
+</html>
