@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import sys
 import logging
 from datetime import datetime, timezone
 
@@ -300,6 +301,17 @@ async def main():
     log.info("BLE Password Sync — Client")
     log.info("=" * 55)
 
+    # Accept passwords via --stdin or use SAMPLE_PASSWORDS
+    passwords_to_send = SAMPLE_PASSWORDS
+    if "--stdin" in sys.argv:
+        try:
+            raw = sys.stdin.read()
+            passwords_to_send = json.loads(raw)
+            log.info(f"Received {len(passwords_to_send)} entries from stdin")
+        except Exception as e:
+            log.error(f"Failed to read passwords from stdin: {e}")
+            return
+
     GLOBAL_RETRIES = 3
     for attempt in range(1, GLOBAL_RETRIES + 1):
         if attempt > 1:
@@ -307,7 +319,7 @@ async def main():
 
         ble_client = BLEPasswordClient()
         try:
-            success = await ble_client.sync(SAMPLE_PASSWORDS)
+            success = await ble_client.sync(passwords_to_send)
             if success:
                 break
             if attempt < GLOBAL_RETRIES:
