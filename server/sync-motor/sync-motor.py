@@ -3,9 +3,7 @@ import uuid
 import time
 import json
 import socket
-import struct
 import threading
-import fcntl
 from hashlib import sha256
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
@@ -108,58 +106,6 @@ class P2PClient:
         return aesgcm.decrypt(nonce, ct, None).decode()
 
     # -------------------
-    # Utilidades de red
-    # -------------------
-    def _get_local_ips(self):
-        """Obtiene una lista de IPs locales (IPv4, no loopback) de todas las interfaces activas."""
-        ips = []
-        try:
-            # Método 1: usando socket.getaddrinfo con hostname
-            hostname = socket.gethostname()
-            for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
-                ip = info[4][0]
-                if not ip.startswith("127."):
-                    ips.append(ip)
-        except Exception:
-            pass
-        
-        # Método 2: usando /proc/net en Linux (más fiable)
-        try:
-            import netifaces
-            for iface in netifaces.interfaces():
-                addrs = netifaces.ifaddresses(iface)
-                if netifaces.AF_INET in addrs:
-                    for addr in addrs[netifaces.AF_INET]:
-                        ip = addr['addr']
-                        if not ip.startswith("127."):
-                            ips.append(ip)
-        except ImportError:
-            # Fallback: leer IPs de los sockets activos
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80))
-                ip = s.getsockname()[0]
-                s.close()
-                if ip not in ips and not ip.startswith("127."):
-                    ips.append(ip)
-            except Exception:
-                pass
-        
-        # Deduplicar
-        seen = set()
-        result = []
-        for ip in ips:
-            if ip not in seen:
-                seen.add(ip)
-                result.append(ip)
-        
-        # Fallback último: al menos 0.0.0.0
-        if not result:
-            result = ["0.0.0.0"]
-        
-        return result
-
-    # -------------------
     # Anuncio de presencia vía MULTICAST (cada 20 segundos)
     # -------------------
     def broadcast_announcement(self):
@@ -180,22 +126,17 @@ class P2PClient:
         """
         try:
             announcement = self.broadcast_announcement()
-            payload = json.dumps(announcement).encode()
             
-            # Enviar por TODAS las interfaces de red disponibles
-            interfaces = self._get_local_ips()
-            for iface_ip in interfaces:
-                try:
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
-                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(iface_ip))
-                    sock.settimeout(2)
-                    sock.sendto(payload, (self.multicast_group, self.multicast_port))
-                    sock.close()
-                except Exception:
-                    pass
+            # Crear socket UDP para multicast
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)  # TTL = 2 (local network)
+            sock.settimeout(2)
             
-            print(f"[{self.device_id}] 📡 Anuncio multicast enviado por {len(interfaces)} interfaces: {interfaces}")
+            # Enviar anuncio al grupo multicast
+            sock.sendto(json.dumps(announcement).encode(), (self.multicast_group, self.multicast_port))
+            sock.close()
+            
+            print(f"[{self.device_id}] 📡 Anuncio enviado al grupo multicast {self.multicast_group}:{self.multicast_port}")
             return True
         except Exception as e:
             print(f"[{self.device_id}] ⚠️  Error enviando anuncio multicast: {type(e).__name__}: {e}")
@@ -228,14 +169,9 @@ class P2PClient:
             # Bind al puerto multicast
             sock.bind(("", self.multicast_port))
             
-            # Unirse al grupo multicast en TODAS las interfaces disponibles
-            for iface_ip in self._get_local_ips():
-                try:
-                    mreq = socket.inet_aton(self.multicast_group) + socket.inet_aton(iface_ip)
-                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-                    print(f"[{self.device_id}] 📻 Multicast join en interfaz {iface_ip}")
-                except Exception as e:
-                    print(f"[{self.device_id}] ⚠️  No se pudo join multicast en {iface_ip}: {e}")
+            # Unirse al grupo multicast
+            mreq = socket.inet_aton(self.multicast_group) + socket.inet_aton("0.0.0.0")
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
             
             print(f"[{self.device_id}] 📻 Escuchando anuncios en grupo multicast {self.multicast_group}:{self.multicast_port}")
             

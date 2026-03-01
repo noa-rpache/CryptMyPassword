@@ -5,4 +5,3 @@ cryptography
 argon2-cffi
 requests
 python-dotenv
-netifaces
