@@ -9,6 +9,7 @@ import aiohttp
 from bleak import BleakError
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bless import BlessServer, BlessGATTCharacteristic, GATTCharacteristicProperties, GATTAttributePermissions
+from crypto_utils import decrypt_payload, generate_keypair
 
 
 # ─── Configuration ────────────────────────────────────────────────────────────
@@ -17,9 +18,10 @@ API_URL = "http://127.0.0.1:8000"
 API_KEY = "my_secret_api_key"
 
 # Custom BLE UUIDs (generate your own if needed)
-SERVICE_UUID     = "12345678-1234-5678-1234-56789abcdef0"
-CHAR_RX_UUID     = "12345678-1234-5678-1234-56789abcdef1"
-CHAR_STATUS_UUID = "12345678-1234-5678-1234-56789abcdef2"
+SERVICE_UUID      = "12345678-1234-5678-1234-56789abcdef0"
+CHAR_RX_UUID      = "12345678-1234-5678-1234-56789abcdef1"
+CHAR_STATUS_UUID  = "12345678-1234-5678-1234-56789abcdef2"
+CHAR_PUBKEY_UUID  = "12345678-1234-5678-1234-56789abcdef3"  # server publishes ephemeral pub key here
 
 CHUNK_DELIMITER = b"<<END>>"
 
@@ -114,6 +116,9 @@ class BLEPasswordServer:
         self.server: BlessServer = None
         self._buffer = bytearray()
         self._loop = None  # Set in start()
+        # Ephemeral X25519 keypair — generated fresh on every run, never stored
+        self._eph_priv_bytes, self._eph_pub_bytes = generate_keypair()
+        log.info("Ephemeral DH keypair generated (in-memory only)")
 
     # Called whenever the client writes to RX characteristic
     def on_write(self, characteristic: BlessGATTCharacteristic, value: bytearray, **kwargs):
@@ -125,19 +130,23 @@ class BLEPasswordServer:
             self._loop.create_task(self._process_payload(bytes(raw)))
 
     async def _process_payload(self, raw: bytes):
-        log.info(f"Full payload received ({len(raw)} bytes)")
+        log.info(f"Encrypted payload received ({len(raw)} bytes)")
         status_msg = {}
 
         try:
-            payload = json.loads(raw.decode("utf-8"))
-            entries = payload.get("passwords", [])
-            sender  = payload.get("device_id", "unknown")
+            plaintext = decrypt_payload(raw, self._eph_priv_bytes)
+            payload   = json.loads(plaintext.decode("utf-8"))
+            entries   = payload.get("passwords", [])
+            sender    = payload.get("device_id", "unknown")
 
-            result = await self.api.save_batch(entries)
+            result     = await self.api.save_batch(entries)
             status_msg = {"ok": True, "sender": sender, **result}
 
+        except ValueError:
+            log.error("Decryption failed — possible MitM or tampered data!")
+            status_msg = {"ok": False, "error": "decryption_failed"}
         except json.JSONDecodeError:
-            log.error("Invalid JSON received")
+            log.error("Invalid JSON after decryption")
             status_msg = {"ok": False, "error": "invalid_json"}
         except Exception as e:
             log.error(f"Processing error: {e}")
@@ -178,6 +187,15 @@ class BLEPasswordServer:
             CHAR_STATUS_UUID,
             GATTCharacteristicProperties.notify | GATTCharacteristicProperties.read,
             None,
+            GATTAttributePermissions.readable
+        )
+
+        # Expose the server's ephemeral public key so the client can perform DH
+        await self.server.add_new_characteristic(
+            SERVICE_UUID,
+            CHAR_PUBKEY_UUID,
+            GATTCharacteristicProperties.read,
+            bytearray(self._eph_pub_bytes),
             GATTAttributePermissions.readable
         )
 
