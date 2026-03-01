@@ -428,6 +428,15 @@ table tr:hover {
     50% { opacity: 0.7; }
 }
 
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
 /* Estilos para contraseñas comprometidas */
 .password-breached {
     background-color: #fff5f5 !important;
@@ -466,13 +475,168 @@ table tr:hover {
     display: none;
 }
 
+/* ============================
+   BLE SECTION — Glassmorphism
+   ============================ */
+.ble-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: stretch;
+}
+
+.glass-card {
+    position: relative;
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255,255,255,0.7);
+    overflow: hidden;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.glass-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255,255,255,0.7);
+}
+
+.ble-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 28px 24px 24px;
+    gap: 12px;
+}
+
+.ble-card h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #2c3e50;
+}
+
+.ble-card-desc {
+    margin: 0;
+    font-size: 0.82rem;
+    color: #8899a6;
+    line-height: 1.45;
+    max-width: 280px;
+}
+
+/* BLE Buttons */
+.ble-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 24px;
+    border: none;
+    border-radius: 10px;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    transition: all 0.2s ease;
+    margin-top: auto;
+}
+
+.ble-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+.ble-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.ble-btn-send {
+    background: rgba(52, 152, 219, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.ble-btn-send:hover:not(:disabled) {
+    background: rgba(52, 152, 219, 0.95);
+    box-shadow: 0 6px 18px rgba(52, 152, 219, 0.25);
+}
+
+.ble-btn-receive {
+    background: rgba(46, 204, 113, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.ble-btn-receive:hover:not(:disabled) {
+    background: rgba(46, 204, 113, 0.95);
+    box-shadow: 0 6px 18px rgba(46, 204, 113, 0.25);
+}
+
+.ble-btn-stop {
+    background: rgba(231, 76, 60, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.ble-btn-stop:hover:not(:disabled) {
+    background: rgba(231, 76, 60, 0.95);
+    box-shadow: 0 6px 18px rgba(231, 76, 60, 0.25);
+}
+
+.ble-receive-controls {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    justify-content: center;
+    margin-top: auto;
+}
+
+/* Status messages */
+.ble-status {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.83rem;
+    font-weight: 500;
+    line-height: 1.4;
+    margin-top: 8px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.ble-status-info {
+    background: rgba(52, 152, 219, 0.1);
+    color: #2471a3;
+    border-left: 4px solid #3498db;
+}
+
+.ble-status-success {
+    background: rgba(46, 204, 113, 0.1);
+    color: #1e8449;
+    border-left: 4px solid #2ecc71;
+}
+
+.ble-status-error {
+    background: rgba(231, 76, 60, 0.1);
+    color: #c0392b;
+    border-left: 4px solid #e74c3c;
+}
+
 .btn-icon.delete-password:active {
     transform: scale(0.9);
 }
 
 /* Responsive */
 @media (max-width: 900px) {
-    .sync-layout {
+    .sync-layout,
+    .ble-grid {
         grid-template-columns: 1fr;
     }
     .section {

@@ -1,6 +1,8 @@
 import os
 import sys
 import random
+import subprocess
+import signal
 import importlib.util
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -63,6 +65,9 @@ collection = db["passwords"]
 # Instancia global del cliente P2P
 p2p_client = None
 
+# Proceso BLE server (recibir)
+ble_server_process = None
+
 # Configuración del cliente P2P (puertos fijos)
 DEVICE_ID = os.getenv("DEVICE_ID", f"Node{random.randint(10000, 99999)}")
 MASTER_PASSWORD = os.getenv("MASTER_PASSWORD", "default_master_password")
@@ -99,6 +104,13 @@ async def lifespan(app: FastAPI):
     if p2p_client:
         p2p_client.running = False
         print(f"[*] Cliente P2P detenido")
+    
+    # Shutdown: detener BLE server si estaba corriendo
+    global ble_server_process
+    if ble_server_process and ble_server_process.poll() is None:
+        ble_server_process.terminate()
+        ble_server_process = None
+        print("[*] BLE server detenido")
 
 
 app = FastAPI(lifespan=lifespan)
@@ -322,3 +334,123 @@ async def link_device(sync_req: SyncRequest, api_key: str = Depends(verify_api_k
             "success": False,
             "error": f"Error durante sincronización: {str(e)}"
         }
+
+
+## BLUETOOTH LOW ENERGY
+
+BLE_DIR = os.path.join(os.path.dirname(__file__), "ble-sync")
+
+
+@app.post("/ble/receive")
+async def ble_receive_start(api_key: str = Depends(verify_api_key)):
+    """
+    Inicia el servidor BLE (modo recepción) como subproceso.
+    El dispositivo se anuncia por Bluetooth y espera que otro envíe contraseñas.
+    """
+    global ble_server_process
+
+    # Si ya hay uno corriendo, informar
+    if ble_server_process and ble_server_process.poll() is None:
+        return {
+            "success": True,
+            "message": "El servidor BLE ya está en ejecución. Esperando conexiones...",
+            "already_running": True,
+        }
+
+    script = os.path.join(BLE_DIR, "ble-server.py")
+    if not os.path.isfile(script):
+        return {"success": False, "error": "No se encontró ble-server.py"}
+
+    try:
+        ble_server_process = subprocess.Popen(
+            [sys.executable, script],
+            cwd=BLE_DIR,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        return {
+            "success": True,
+            "message": "Servidor BLE iniciado. Anunciando como 'PasswordVault-BLE'...",
+            "pid": ble_server_process.pid,
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Error al iniciar servidor BLE: {str(e)}"}
+
+
+@app.post("/ble/stop")
+async def ble_receive_stop(api_key: str = Depends(verify_api_key)):
+    """Detiene el servidor BLE si está corriendo."""
+    global ble_server_process
+
+    if ble_server_process and ble_server_process.poll() is None:
+        ble_server_process.terminate()
+        try:
+            ble_server_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            ble_server_process.kill()
+        ble_server_process = None
+        return {"success": True, "message": "Servidor BLE detenido."}
+
+    ble_server_process = None
+    return {"success": True, "message": "No había servidor BLE en ejecución."}
+
+
+@app.post("/ble/send")
+async def ble_send(api_key: str = Depends(verify_api_key)):
+    """
+    Ejecuta el cliente BLE: escanea un servidor BLE cercano y envía
+    todas las contraseñas del vault.
+    Se ejecuta de forma síncrona (bloquea hasta que termina) y devuelve el resultado.
+    """
+    if not p2p_client:
+        return {"success": False, "error": "Cliente P2P no inicializado"}
+
+    # Obtener contraseñas actuales del vault
+    passwords = p2p_client.get_all_passwords()
+    if not passwords:
+        return {"success": False, "error": "No hay contraseñas para enviar."}
+
+    # Convertir al formato que espera el cliente BLE
+    ble_entries = []
+    for pw in passwords:
+        ble_entries.append({
+            "service": pw["domain"],
+            "username": pw["user"],
+            "password": pw["password"],
+        })
+
+    script = os.path.join(BLE_DIR, "ble-client.py")
+    if not os.path.isfile(script):
+        return {"success": False, "error": "No se encontró ble-client.py"}
+
+    # Pasar contraseñas al cliente BLE via stdin como JSON
+    import json as _json
+    payload = _json.dumps(ble_entries)
+
+    try:
+        proc = subprocess.run(
+            [sys.executable, script, "--stdin"],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=BLE_DIR,
+        )
+
+        if proc.returncode == 0:
+            return {
+                "success": True,
+                "message": f"Contraseñas enviadas por Bluetooth ({len(ble_entries)} entradas).",
+                "entries_sent": len(ble_entries),
+                "output": proc.stdout[-500:] if proc.stdout else "",
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"El cliente BLE falló (código {proc.returncode})",
+                "output": (proc.stdout or "")[-500:] + (proc.stderr or "")[-500:],
+            }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "Timeout: no se encontró servidor BLE en 120 segundos."}
+    except Exception as e:
+        return {"success": False, "error": f"Error ejecutando cliente BLE: {str(e)}"}
