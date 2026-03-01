@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz@gmailcom  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # -*- coding: utf-8 -*-
 """
 entropy_engine.py
@@ -61,10 +65,9 @@ import threading
 import time
 
 import requests
-from pymongo import MongoClient
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-
+from pymongo import MongoClient
 
 # ---------------------------------------------------------------------------
 # Debug configuration
@@ -89,6 +92,7 @@ def dbg(msg: str) -> None:
 # Memory hygiene
 # ---------------------------------------------------------------------------
 
+
 def secure_zero(buf: bytearray) -> None:
     """Overwrite *buf* in-place with null bytes to limit sensitive data lifetime.
 
@@ -108,6 +112,7 @@ def secure_zero(buf: bytearray) -> None:
 # ---------------------------------------------------------------------------
 # OKM bitstream
 # ---------------------------------------------------------------------------
+
 
 class OKMStream:
     """Deterministic 64-bit-word stream backed by OKM, with secrets fallback.
@@ -153,13 +158,16 @@ class OKMStream:
             self._fallback_count += 1
             padding = secrets.token_bytes(8 - len(raw))
             raw = raw + padding
-            dbg(f"OKMStream: OKM exhausted, fallback #{self._fallback_count} to secrets")
+            dbg(
+                f"OKMStream: OKM exhausted, fallback #{self._fallback_count} to secrets"
+            )
         return int.from_bytes(raw, "big")
 
 
 # ---------------------------------------------------------------------------
 # Lemire's nearly divisionless unbiased index algorithm
 # ---------------------------------------------------------------------------
+
 
 def get_unbiased_index(n: int, stream: OKMStream) -> int:
     """Return an unbiased random integer in [0, n) using Lemire's algorithm.
@@ -239,7 +247,9 @@ def _load_quantum_cache() -> tuple[bytes, float]:
             pool = bytes.fromhex(doc["entropy"])
             timestamp = float(doc["timestamp"])
             age_min = (time.time() - timestamp) / 60
-            dbg(f"_load_quantum_cache: found — {len(pool)} bytes, age {age_min:.1f} min")
+            dbg(
+                f"_load_quantum_cache: found — {len(pool)} bytes, age {age_min:.1f} min"
+            )
             return pool, timestamp
         dbg("_load_quantum_cache: no document found")
     except Exception as exc:
@@ -269,13 +279,12 @@ def _save_quantum_cache(pool: bytes) -> None:
         print(f"[*] Could not save quantum cache to MongoDB: {exc}")
 
 
-
 # ---------------------------------------------------------------------------
 # Background ANU cache refresh worker
 # ---------------------------------------------------------------------------
 
-_QUANTUM_REFRESH_INTERVAL: int = 15 * 60   # seconds between successful refreshes
-_QUANTUM_RETRY_INTERVAL:   int = 90         # seconds to wait after a failed fetch
+_QUANTUM_REFRESH_INTERVAL: int = 15 * 60  # seconds between successful refreshes
+_QUANTUM_RETRY_INTERVAL: int = 90  # seconds to wait after a failed fetch
 """How often the background worker tries to fetch a fresh pool from ANU."""
 
 _worker_lock: threading.Lock = threading.Lock()
@@ -377,7 +386,9 @@ def _quantum_refresh_loop() -> None:
                 pool = _fetch_anu_pool()
                 if pool:
                     _save_quantum_cache(pool)
-                    dbg("quantum_refresh_loop: retry succeeded; resuming normal cadence")
+                    dbg(
+                        "quantum_refresh_loop: retry succeeded; resuming normal cadence"
+                    )
                     break
                 dbg("quantum_refresh_loop: retry failed; will try again")
 
@@ -417,6 +428,7 @@ def is_quantum_worker_alive() -> bool:
 # Entropy source 1 — local OS CSPRNG
 # ---------------------------------------------------------------------------
 
+
 def get_entropy_1() -> bytes:
     """Return 32 bytes of local OS entropy via os.urandom.
 
@@ -435,6 +447,7 @@ def get_entropy_1() -> bytes:
 # ---------------------------------------------------------------------------
 # Entropy source 2 — ANU Quantum Random Number Generator
 # ---------------------------------------------------------------------------
+
 
 def get_entropy_2() -> bytes:
     """Return 32 bytes drawn from a quantum entropy pool (ANU QRNG API).
@@ -468,7 +481,7 @@ def get_entropy_2() -> bytes:
         pool_size = len(cached_pool)
         offset = int.from_bytes(os.urandom(4), "big") % (pool_size - 31)
         dbg(f"get_entropy_2: cache hit — pool {pool_size} bytes, offset {offset}")
-        return cached_pool[offset:offset + 32]
+        return cached_pool[offset : offset + 32]
 
     # Slow path: no usable cache — fetch synchronously once
     dbg("get_entropy_2: no valid cache; fetching synchronously (first run)...")
@@ -477,14 +490,14 @@ def get_entropy_2() -> bytes:
         _save_quantum_cache(pool)
         offset = int.from_bytes(os.urandom(4), "big") % (len(pool) - 31)
         dbg(f"get_entropy_2: synchronous fetch OK — offset {offset}")
-        return pool[offset:offset + 32]
+        return pool[offset : offset + 32]
 
     # Fallback 1 — expired cache is still better than pure CSPRNG
     if cached_pool:
         print("[*] Using expired quantum cache as fallback.")
         offset = int.from_bytes(os.urandom(4), "big") % (len(cached_pool) - 31)
         dbg(f"get_entropy_2: expired cache fallback — offset {offset}")
-        return cached_pool[offset:offset + 32]
+        return cached_pool[offset : offset + 32]
 
     # Fallback 2 — local CSPRNG
     print("[*] No quantum entropy available; falling back to os.urandom.")
@@ -494,6 +507,7 @@ def get_entropy_2() -> bytes:
 # ---------------------------------------------------------------------------
 # Entropy source 3 — Random.org (atmospheric noise)
 # ---------------------------------------------------------------------------
+
 
 def get_entropy_3() -> bytes:
     """Return 32 bytes of atmospheric entropy from the Random.org API.
@@ -528,7 +542,9 @@ def get_entropy_3() -> bytes:
         else:
             # Strip spaces and newlines before hex-decoding
             hex_clean = response.text.strip().replace(" ", "").replace("\n", "")
-            dbg(f"get_entropy_3: cleaned hex ({len(hex_clean)} chars): {hex_clean[:32]}...")
+            dbg(
+                f"get_entropy_3: cleaned hex ({len(hex_clean)} chars): {hex_clean[:32]}..."
+            )
             try:
                 entropy = bytes.fromhex(hex_clean)
                 dbg(f"get_entropy_3: OK — {len(entropy)} bytes obtained")
@@ -552,6 +568,7 @@ def get_entropy_3() -> bytes:
 # IKM collection and OKM derivation
 # ---------------------------------------------------------------------------
 
+
 def collect_ikm() -> bytearray:
     """Gather entropy from all three sources and concatenate into IKM.
 
@@ -563,11 +580,11 @@ def collect_ikm() -> bytearray:
         A 96-byte mutable IKM buffer (3 × 32 bytes).
     """
     dbg("--- Source 1: local OS entropy ---")
-    e_local   = get_entropy_1()
+    e_local = get_entropy_1()
     dbg("--- Source 2: quantum entropy (ANU) ---")
     e_quantum = get_entropy_2()
     dbg("--- Source 3: atmospheric entropy (Random.org) ---")
-    e_random  = get_entropy_3()
+    e_random = get_entropy_3()
 
     ikm = bytearray(e_local + e_quantum + e_random)
     dbg(

@@ -1,4 +1,6 @@
-// browser/env-loader.js
+// SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz@gmailcom  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+//
+// SPDX-License-Identifier: Apache-2.0
 
 async function loadEnv() {
   try {

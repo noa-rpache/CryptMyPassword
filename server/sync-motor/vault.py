@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz@gmailcom  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import time
 from hashlib import sha256
@@ -10,7 +14,9 @@ class VaultEntry:
         self.user = user
         self.password = password
         self.state = state
-        self.timestamp_mod = timestamp_mod if timestamp_mod is not None else int(time.time())
+        self.timestamp_mod = (
+            timestamp_mod if timestamp_mod is not None else int(time.time())
+        )
 
     def to_dict(self):
         return {
@@ -18,7 +24,7 @@ class VaultEntry:
             "user": self.user,
             "password": self.password,
             "state": self.state,
-            "timestamp_mod": self.timestamp_mod
+            "timestamp_mod": self.timestamp_mod,
         }
 
 
@@ -44,12 +50,14 @@ class Vault:
             else:
                 self.version = 0
                 self.timestamp = int(time.time())
-                self._collection.insert_one({
-                    "_id": self.device_id,
-                    "version": self.version,
-                    "timestamp": self.timestamp,
-                    "entries": []
-                })
+                self._collection.insert_one(
+                    {
+                        "_id": self.device_id,
+                        "version": self.version,
+                        "timestamp": self.timestamp,
+                        "entries": [],
+                    }
+                )
         else:
             # Modo sin Mongo (local / test)
             self.version = 0
@@ -71,10 +79,11 @@ class Vault:
     @entries.setter
     def entries(self, value: List[VaultEntry]):
         if self._collection is not None:
-            entries_dicts = [e.to_dict() if isinstance(e, VaultEntry) else e for e in value]
+            entries_dicts = [
+                e.to_dict() if isinstance(e, VaultEntry) else e for e in value
+            ]
             self._collection.update_one(
-                {"_id": self.device_id},
-                {"$set": {"entries": entries_dicts}}
+                {"_id": self.device_id}, {"$set": {"entries": entries_dicts}}
             )
         else:
             self._local_entries = value
@@ -85,8 +94,7 @@ class Vault:
     def add_entry(self, entry: VaultEntry):
         if self._collection is not None:
             self._collection.update_one(
-                {"_id": self.device_id},
-                {"$push": {"entries": entry.to_dict()}}
+                {"_id": self.device_id}, {"$push": {"entries": entry.to_dict()}}
             )
         else:
             self._local_entries.append(entry)
@@ -100,7 +108,7 @@ class Vault:
             set_fields = {f"entries.$.{k}": v for k, v in updates.items()}
             self._collection.update_one(
                 {"_id": self.device_id, "entries.site": site, "entries.user": user},
-                {"$set": set_fields}
+                {"$set": set_fields},
             )
         else:
             for e in self._local_entries:
@@ -125,25 +133,23 @@ class Vault:
         if self._collection is not None:
             self._collection.update_one(
                 {"_id": self.device_id},
-                {"$set": {"version": self.version, "timestamp": self.timestamp}}
+                {"$set": {"version": self.version, "timestamp": self.timestamp}},
             )
 
     def to_json(self):
-        return json.dumps({
-            "device_id": self.device_id,
-            "version": self.version,
-            "timestamp": self.timestamp,
-            "entries": [e.to_dict() for e in self.entries]
-        })
+        return json.dumps(
+            {
+                "device_id": self.device_id,
+                "version": self.version,
+                "timestamp": self.timestamp,
+                "entries": [e.to_dict() for e in self.entries],
+            }
+        )
 
     def hash(self):
         """Hash basado SOLO en version + entries (sin device_id) para consistencia entre dispositivos"""
         sorted_entries = sorted(
-            [e.to_dict() for e in self.entries],
-            key=lambda x: (x['site'], x['user'])
+            [e.to_dict() for e in self.entries], key=lambda x: (x["site"], x["user"])
         )
-        vault_content = json.dumps({
-            "version": self.version,
-            "entries": sorted_entries
-        })
+        vault_content = json.dumps({"version": self.version, "entries": sorted_entries})
         return sha256(vault_content.encode()).hexdigest()

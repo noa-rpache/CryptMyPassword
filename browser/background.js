@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz@gmailcom  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+//
+// SPDX-License-Identifier: Apache-2.0
+
 // background.js
 
 var browser = browser || chrome;
@@ -70,7 +74,11 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
           console.log("[BG] Dispositivos obtenidos:", result);
           break;
         case "LINK_DEVICE":
-          console.log("[BG] Sincronizando con peer:", message.peer_ip, message.peer_port);
+          console.log(
+            "[BG] Sincronizando con peer:",
+            message.peer_ip,
+            message.peer_port,
+          );
           result = await callApi("/synchronise", "POST", {
             peer_ip: message.peer_ip,
             peer_port: message.peer_port,

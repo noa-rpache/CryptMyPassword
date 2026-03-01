@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz@gmailcom  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # -*- coding: utf-8 -*-
 """
 password_manager.py
@@ -55,7 +59,6 @@ import hashlib
 import warnings
 
 import requests
-
 from entropy_engine import (
     OKMStream,
     collect_ikm,
@@ -67,16 +70,12 @@ from entropy_engine import (
     start_quantum_refresh_worker,
 )
 
-
 # ---------------------------------------------------------------------------
 # Alphabet
 # ---------------------------------------------------------------------------
 
 _ALPHABET: str = (
-    "abcdefghijklmnopqrstuvwxyz"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "0123456789"
-    "!@#$%^&*()-_=+"
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+"
 )
 """Character pool used when generating passwords (76 symbols)."""
 
@@ -84,6 +83,7 @@ _ALPHABET: str = (
 # ---------------------------------------------------------------------------
 # Character mapping
 # ---------------------------------------------------------------------------
+
 
 def lemire_unbiased_mapping(alphabet: str, length: int, stream: OKMStream) -> str:
     """Build a random string driven by an OKMStream.
@@ -118,7 +118,7 @@ def lemire_unbiased_mapping(alphabet: str, length: int, stream: OKMStream) -> st
 
 _HIBP_HEADERS: dict[str, str] = {
     "User-Agent": "HackUDC26-PasswordGen/1.0",
-    "Add-Padding": "true",   # ask HIBP to pad the response to a fixed size
+    "Add-Padding": "true",  # ask HIBP to pad the response to a fixed size
 }
 
 _HIBP_URL = "https://api.pwnedpasswords.com/range/{prefix}"
@@ -199,6 +199,7 @@ def check_hibp(password: str) -> tuple[bool, int | None]:
 # ---------------------------------------------------------------------------
 # Full password generation pipeline
 # ---------------------------------------------------------------------------
+
 
 def generate_secure_password(
     length: int = 20,

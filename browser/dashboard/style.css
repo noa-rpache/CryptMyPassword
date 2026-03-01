@@ -1,9 +1,19 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz@gmailcom  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /* Reset y base */
 * {
     box-sizing: border-box;
 }
 body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family:
+        "Segoe UI",
+        system-ui,
+        -apple-system,
+        sans-serif;
     margin: 0;
     padding: 0;
     background: #f0f2f5;
@@ -119,7 +129,7 @@ table tr:hover {
 .password-cell input {
     border: none;
     background: none;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: "SF Mono", "Fira Code", monospace;
     font-size: 0.95rem;
     color: #2c3e50;
     width: 200px;
@@ -317,7 +327,7 @@ table tr:hover {
 }
 
 .device-ip {
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: "SF Mono", "Fira Code", monospace;
     background: #e9ecef;
     padding: 1px 7px;
     border-radius: 4px;
@@ -384,7 +394,7 @@ table tr:hover {
     border: 2px solid #e9ecef;
     border-radius: 8px;
     font-size: 0.92rem;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: "SF Mono", "Fira Code", monospace;
     transition: border-color 0.2s;
     background: #fafbfc;
 }
@@ -424,8 +434,13 @@ table tr:hover {
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
 }
 
 /* Estilos para contraseñas comprometidas */

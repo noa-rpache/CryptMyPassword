@@ -1,11 +1,16 @@
-import os
-import sys
-import random
+# SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz@gmailcom  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import importlib.util
+import os
+import random
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
+
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from fastapi import Depends, FastAPI
@@ -76,11 +81,11 @@ P2P_ANNOUNCEMENT_PORT = 6000  # Puerto fijo para anuncios multicast
 async def lifespan(app: FastAPI):
     """FastAPI lifespan: run startup logic before serving requests."""
     global p2p_client
-    
+
     # Iniciar quantum refresh worker
     start_quantum_refresh_worker()
     print(f"[*] ANU quantum refresh worker alive: {is_quantum_worker_alive()}")
-    
+
     # Inicializar cliente P2P (con MongoDB)
     print(f"[*] Iniciando cliente P2P: {DEVICE_ID}")
     p2p_client = P2PClient(
@@ -89,12 +94,12 @@ async def lifespan(app: FastAPI):
         listen_port=P2P_LISTEN_PORT,
         announcement_port=P2P_ANNOUNCEMENT_PORT,
         mongo_collection=collection,
-        encryption_key=API_KEY
+        encryption_key=API_KEY,
     )
     print(f"[*] Cliente P2P iniciado exitosamente")
-    
+
     yield
-    
+
     # Shutdown: detener cliente P2P
     if p2p_client:
         p2p_client.running = False
@@ -158,7 +163,7 @@ Devuelve la lista de dominios con contraseñas comprometidas:
 async def audit_passwords(api_key: str = Depends(verify_api_key)):
     if not p2p_client:
         return {"error": "Cliente P2P no inicializado"}
-    
+
     results = []
     for entry in p2p_client.get_all_passwords():
         is_pwned, count = check_hibp(entry["password"])
@@ -209,7 +214,7 @@ El cuerpo debe tener el siguiente formato:
 async def save_password(content: FullItem, api_key: str = Depends(verify_api_key)):
     if not p2p_client:
         return {"error": "Cliente P2P no inicializado"}
-    
+
     print(f"/password/save {content}")
     p2p_client.save_password(content.domain, content.user, content.password)
 
@@ -234,9 +239,9 @@ Ejemplo: DELETE /password/www.gmail.com
 async def delete_password(domain: str, api_key: str = Depends(verify_api_key)):
     if not p2p_client:
         return {"error": "Cliente P2P no inicializado"}
-    
+
     print(f"/password/delete {domain}")
-    
+
     # Buscar la entrada para obtener el user
     entry_info = p2p_client.get_password_by_domain(domain)
     if not entry_info:
@@ -245,9 +250,9 @@ async def delete_password(domain: str, api_key: str = Depends(verify_api_key)):
             "message": f"No se encontró contraseña para el dominio: {domain}",
             "domain": domain,
         }
-    
+
     result = p2p_client.delete_password(domain, entry_info["user"])
-    
+
     if not result:
         return {
             "success": False,
@@ -273,16 +278,16 @@ Te devuelve los dispositivos activos con los que te puedes sincronizar
 async def get_devices(api_key: str = Depends(verify_api_key)):
     if not p2p_client:
         return {"error": "Cliente P2P no inicializado"}
-    
+
     active_peers = p2p_client.get_active_peers_list()
     vault_info = p2p_client.get_metadata()
-    
+
     return {
         "device_id": p2p_client.device_id,
         "vault_version": vault_info["version"],
         "vault_hash": vault_info["hash"],
         "active_peers": active_peers,
-        "total_peers": len(active_peers)
+        "total_peers": len(active_peers),
     }
 
 
@@ -301,24 +306,21 @@ Cuerpo:
 async def link_device(sync_req: SyncRequest, api_key: str = Depends(verify_api_key)):
     if not p2p_client:
         return {"error": "Cliente P2P no inicializado"}
-    
+
     try:
         # Iniciar sincronización con el peer
         p2p_client.synchronize_with_peer(sync_req.peer_ip, sync_req.peer_port)
-        
+
         # Obtener info actualizada después de sincronizar
         vault_info = p2p_client.get_metadata()
         vault_data = p2p_client.vault.to_json()
-        
+
         return {
             "success": True,
             "message": f"Sincronización completada con {sync_req.peer_ip}:{sync_req.peer_port}",
             "vault_version": vault_info["version"],
             "vault_hash": vault_info["hash"],
-            "vault_entries_count": len(p2p_client.vault.entries)
+            "vault_entries_count": len(p2p_client.vault.entries),
         }
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"Error durante sincronización: {str(e)}"
-        }
+        return {"success": False, "error": f"Error durante sincronización: {str(e)}"}

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz@gmailcom  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+//
+// SPDX-License-Identifier: Apache-2.0
+
 // Mostrar/ocultar contraseña
 
 var browser = browser || chrome;
@@ -190,7 +194,9 @@ async function loadPasswords() {
         toggleBtn.addEventListener("click", () =>
           togglePassword(input, toggleBtn),
         );
-        copyBtn.addEventListener("click", () => copyPassword(input.value, copyBtn));
+        copyBtn.addEventListener("click", () =>
+          copyPassword(input.value, copyBtn),
+        );
         deleteBtn.addEventListener("click", () => deletePassword(domain));
       });
     } else {
@@ -235,11 +241,15 @@ async function syncWithPeer(ip, port, deviceId) {
     console.log("[SYNC] Resultado:", result);
 
     if (result && result.success) {
-      alert(`✅ Sincronización exitosa con ${deviceId}\n\nVault v${result.vault_version} — ${result.vault_entries_count} entradas`);
+      alert(
+        `✅ Sincronización exitosa con ${deviceId}\n\nVault v${result.vault_version} — ${result.vault_entries_count} entradas`,
+      );
       loadPasswords();
       loadDevices();
     } else {
-      alert(`❌ Error sincronizando con ${deviceId}:\n${result?.error || result?.message || "Error desconocido"}`);
+      alert(
+        `❌ Error sincronizando con ${deviceId}:\n${result?.error || result?.message || "Error desconocido"}`,
+      );
     }
   } catch (err) {
     console.error("[SYNC] Error:", err);
@@ -311,7 +321,9 @@ async function loadDevices() {
       container.querySelectorAll(".device-card").forEach((card) => {
         card.addEventListener("click", () => {
           // Deseleccionar todas las tarjetas
-          container.querySelectorAll(".device-card").forEach(c => c.classList.remove("selected"));
+          container
+            .querySelectorAll(".device-card")
+            .forEach((c) => c.classList.remove("selected"));
           // Seleccionar esta
           card.classList.add("selected");
 

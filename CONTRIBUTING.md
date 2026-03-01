@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz@gmailcom  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Contributing to CryptMyPassword
 
 Thank you for your interest in contributing to CryptMyPassword! We welcome contributions from everyone, whether it's code, documentation, bug reports, or feature requests.
