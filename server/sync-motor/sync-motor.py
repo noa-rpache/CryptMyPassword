@@ -3,7 +3,6 @@ import uuid
 import time
 import json
 import socket
-import struct
 import threading
 from hashlib import sha256
 
@@ -107,40 +106,6 @@ class P2PClient:
         return aesgcm.decrypt(nonce, ct, None).decode()
 
     # -------------------
-    # Utilidades de red
-    # -------------------
-    @staticmethod
-    def _get_local_ips():
-        """Obtiene IPs locales IPv4 (no loopback) sin dependencias externas."""
-        ips = set()
-        # Conectar UDP sin enviar nada para resolver la interfaz por defecto
-        for target in ("8.8.8.8", "1.1.1.1"):
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.settimeout(0)
-                s.connect((target, 80))
-                ip = s.getsockname()[0]
-                s.close()
-                if not ip.startswith("127."):
-                    ips.add(ip)
-            except Exception:
-                pass
-        # Parsear /proc/net/fib_trie (Linux)
-        try:
-            with open("/proc/net/fib_trie") as f:
-                lines = f.readlines()
-            for i, line in enumerate(lines):
-                if line.strip().startswith("/32 host LOCAL"):
-                    prev = lines[i - 1].strip()
-                    if prev.startswith("|--"):
-                        ip = prev.split()[-1]
-                        if not ip.startswith("127."):
-                            ips.add(ip)
-        except Exception:
-            pass
-        return list(ips) if ips else ["0.0.0.0"]
-
-    # -------------------
     # Anuncio de presencia vía MULTICAST (cada 20 segundos)
     # -------------------
     def broadcast_announcement(self):
@@ -151,6 +116,7 @@ class P2PClient:
         announcement = {
             "device_id": self.device_id,
             "device_pub_bytes": self.device_pub.public_bytes_raw().hex(),
+            "listen_port": self.listen_port,
             "timestamp": int(time.time())
         }
         return announcement
@@ -161,19 +127,12 @@ class P2PClient:
         """
         try:
             announcement = self.broadcast_announcement()
-            payload = json.dumps(announcement).encode()
-            interfaces = self._get_local_ips()
-            for iface_ip in interfaces:
-                try:
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 32)
-                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(iface_ip))
-                    sock.settimeout(2)
-                    sock.sendto(payload, (self.multicast_group, self.multicast_port))
-                    sock.close()
-                except Exception:
-                    pass
-            print(f"[{self.device_id}] 📡 Anuncio multicast enviado por {len(interfaces)} interfaz(es): {interfaces}")
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 32)
+            sock.settimeout(2)
+            sock.sendto(json.dumps(announcement).encode(), (self.multicast_group, self.multicast_port))
+            sock.close()
+            print(f"[{self.device_id}] 📡 Anuncio enviado al grupo multicast {self.multicast_group}:{self.multicast_port}")
             return True
         except Exception as e:
             print(f"[{self.device_id}] ⚠️  Error enviando anuncio multicast: {type(e).__name__}: {e}")
@@ -206,20 +165,10 @@ class P2PClient:
             # Bind al puerto multicast
             sock.bind(("", self.multicast_port))
             
-            # Unirse al grupo multicast en todas las interfaces detectadas
-            joined = []
-            for iface_ip in self._get_local_ips():
-                try:
-                    mreq = struct.pack("4s4s", socket.inet_aton(self.multicast_group), socket.inet_aton(iface_ip))
-                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-                    joined.append(iface_ip)
-                except Exception:
-                    pass
-            if not joined:
-                mreq = struct.pack("4s4s", socket.inet_aton(self.multicast_group), socket.inet_aton("0.0.0.0"))
-                sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-                joined.append("0.0.0.0")
-            print(f"[{self.device_id}] 📻 Multicast join en interfaces: {joined}")
+            # Unirse al grupo multicast
+            mreq = socket.inet_aton(self.multicast_group) + socket.inet_aton("0.0.0.0")
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+            
             print(f"[{self.device_id}] 📻 Escuchando anuncios en grupo multicast {self.multicast_group}:{self.multicast_port}")
             
             while self.running:
@@ -231,9 +180,9 @@ class P2PClient:
                     # Procesar el anuncio
                     device_id = announcement["device_id"]
                     peer_ip = addr[0]
-                    peer_port = addr[1]
+                    peer_port = announcement.get("listen_port", self.listen_port)  # Puerto TCP real, NO el UDP efímero
 
-                    print (f"[{self.device_id}] 📨 Anuncio de {device_id} con IP {peer_ip} y puerto {peer_port} recibido")
+                    print (f"[{self.device_id}] 📨 Anuncio de {device_id} con IP {peer_ip} y puerto TCP {peer_port} recibido")
                     
                     # No procesar anuncios propios
                     if device_id == self.device_id:
