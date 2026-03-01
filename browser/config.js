@@ -4,7 +4,7 @@ const CONFIG = {
   API_URL: "http://127.0.0.1:8000",
 
   get API_KEY() {
-    return window.ENV?.API_KEY || "default-api-key-change-in-production";
+    return (typeof window !== "undefined" && window.ENV?.API_KEY) || "my_secret_api_key";
   },
 
   REQUEST_TIMEOUT: 5000,

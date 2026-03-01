@@ -35,7 +35,5 @@ async function initEnv() {
   return window.ENV;
 }
 
-// Si se importa como módulo, ejecutar automáticamente
-if (document.currentScript) {
-  initEnv();
-}
+// Ejecutar automáticamente
+initEnv();

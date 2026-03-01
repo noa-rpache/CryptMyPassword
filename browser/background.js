@@ -1,7 +1,6 @@
 // background.js
 
 var browser = browser || chrome;
-const API_KEY = "mi-clave-super-secreta";
 
 async function callApi(endpoint, method = "GET", body = null) {
   const options = {
@@ -71,12 +70,12 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
           console.log("[BG] Dispositivos obtenidos:", result);
           break;
         case "LINK_DEVICE":
-          console.log("[BG] Enlazando dispositivo:", message.name);
+          console.log("[BG] Sincronizando con peer:", message.peer_ip, message.peer_port);
           result = await callApi("/synchronise", "POST", {
-            name: message.name,
-            ip: message.ip,
+            peer_ip: message.peer_ip,
+            peer_port: message.peer_port,
           });
-          console.log("[BG] Dispositivo enlazado:", result);
+          console.log("[BG] Resultado sincronización:", result);
           break;
         case "AUDIT_PASSWORDS":
           console.log("[BG] Auditando contraseñas...");
