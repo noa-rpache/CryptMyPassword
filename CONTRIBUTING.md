@@ -32,6 +32,7 @@ This project adheres to the Contributor Covenant Code of Conduct. By participati
 Before you start, ensure you have:
 - Git installed and configured
 - Docker
+- Python3
 - A GitHub account
 
 ### Fork and Clone
@@ -39,12 +40,12 @@ Before you start, ensure you have:
 1. Fork the repository on GitHub
 2. Clone your fork locally:
    ```bash
-   git clone https://github.com/Pablodiz/CryptMyPassword.git
+   git clone https://github.com/noa-rpache/CryptMyPassword.git
    cd CryptMyPassword
    ```
 3. Add the upstream repository:
    ```bash
-   git remote add upstream https://github.com/Pablodiz/CryptMyPassword.git
+   git remote add upstream https://github.com/noa-rpache/CryptMyPassword.git
    ```
 
 ## Development Setup
@@ -53,9 +54,21 @@ Before you start, ensure you have:
 
 ```bash
 cd server
+
+cp .env.example .env # Modify the values as needed
+
+# Create a virtual environment
+python3 -m venv <nombre-env>
+
+source <nombre-env>/bin/activate  # Linux
+<nombre-env>\Scripts\activate     # Windows
+
+pip install -r requirements.txt   # Install dependencies
+
+# Launch FastAPI server
+python -m fastapi dev main.py --host 0.0.0.0 --port 8000
+# Launch MongoDB
 docker-compose up
-# Services:
-# - FastAPI: http://127.0.0.1:8000
 ```
 
 ### Extension Development

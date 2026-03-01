@@ -12,7 +12,6 @@ A secure, open-source password manager browser extension that generates and stor
 
 - [Purpose](#purpose)
 - [Features](#features)
-- [Quick Start](#quick-start)
 - [Installation](#installation)
 - [Usage](#usage)
 - [Configuration](#configuration)
@@ -48,21 +47,6 @@ CryptMyPassword solves the problem of password management and secure generation.
 - Docker containerization for easy deployment and development
 - Quantum randomness integration for enhanced entropy
 
-## Quick Start
-
-### Browser Extension
-1. Clone the repository
-2. Open `chrome://extensions/` (Chrome) or `about:addons` (Firefox)
-3. Enable "Developer mode"
-4. Load the `browser/` folder as an unpacked extension
-5. Ensure the backend API is running at `http://127.0.0.1:8000`
-
-### Backend Server
-```bash
-cd server
-docker-compose up
-```
-
 ## Installation
 
 ### For Users
@@ -72,8 +56,9 @@ docker-compose up
 ### For Developers
 
 **Prerequisites**
-- Docker.
-- Android Studio (for mobile development).
+- Docker
+- Android Studio (for mobile development)
+- python3
 
 **Mobile setup**
 
@@ -84,18 +69,28 @@ docker-compose up
 **Backend Setup**
 ```bash
 # Clone repository
-git clone https://github.com/Pablodiz/CryptMyPassword.git
-cd CryptMyPassword/server
+git clone https://github.com/noa-rpache/CryptMyPassword.git
+
+cd server
 
 cp .env.example .env # Modify the values as needed
 
+# Create a virtual environment
+python3 -m venv <nombre-env>
+
+source <nombre-env>/bin/activate  # Linux
+<nombre-env>\Scripts\activate     # Windows
+
+pip install -r requirements.txt   # Install dependencies
+
+# Launch FastAPI server
+python -m fastapi dev main.py --host 0.0.0.0 --port 8000
+# Launch MongoDB
 docker-compose up
 ```
 
 **Extension Setup**
 ```bash
-cd CryptMyPassword/browser
-
 # Load in Firefox
 # 1. Navigate to about:debugging#/runtime/this-firefox
 # 2. Click "Load Temporary Add-on"
@@ -151,10 +146,7 @@ POST   /synchronise              # Link a new device
 
 ## Configuration
 
-### Docker Compose
-
-The included `docker-compose.yml` sets up:
-- FastAPI application on port 8000
+Add an `API_KEY` to both server and browser `.env` files.
 
 ## Architecture
 
@@ -206,8 +198,8 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file
 ### Getting Help
 
 - 📖 **Documentation**: See the [docs/](docs/) folder for detailed explanations about how it works.
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/Pablodiz/CryptMyPassword/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/Pablodiz/CryptMyPassword/discussions)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/noa-rpache/CryptMyPassword/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/noa-rpache/CryptMyPassword/discussions)
 
 ### Roadmap
 
@@ -216,7 +208,7 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file
 
 ### Community
 
-- Follow development on [GitHub](https://github.com/Pablodiz/CryptMyPassword)
+- Follow development on [GitHub](https://github.com/noa-rpache/CryptMyPassword)
 - Join discussions and share feedback
 - Report bugs and request features
 - Contribute code, docs, or translations
