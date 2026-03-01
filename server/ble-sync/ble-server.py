@@ -5,17 +5,16 @@ import json
 import logging
 from datetime import datetime, timezone
 
+import aiohttp
 from bleak import BleakError
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bless import BlessServer, BlessGATTCharacteristic, GATTCharacteristicProperties, GATTAttributePermissions
-from pymongo import MongoClient, errors as mongo_errors
 
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
-MONGO_URI        = "mongodb://localhost:27017"
-MONGO_DB         = "password_vault"
-MONGO_COLLECTION = "passwords"
+API_URL = "http://127.0.0.1:8000"
+API_KEY = "my_secret_api_key"
 
 # Custom BLE UUIDs (generate your own if needed)
 SERVICE_UUID     = "12345678-1234-5678-1234-56789abcdef0"
@@ -35,92 +34,86 @@ logging.basicConfig(
 log = logging.getLogger("BLE-Server")
 
 
-# ─── MongoDB Helper ───────────────────────────────────────────────────────────
+# ─── API Helper ───────────────────────────────────────────────────────────────
 
-class PasswordStore:
-    def __init__(self):
-        self.client = None
-        self.collection = None
+class PasswordAPI:
+    """Saves passwords by calling POST /password/save on the main FastAPI server."""
 
-    def connect(self):
+    def __init__(self, base_url: str = API_URL, api_key: str = API_KEY):
+        self.base_url = base_url
+        self.headers = {
+            "X-API-Key": api_key,
+            "Content-Type": "application/json",
+        }
+        self._session: aiohttp.ClientSession | None = None
+
+    async def open(self):
+        self._session = aiohttp.ClientSession(
+            base_url=self.base_url,
+            headers=self.headers,
+            timeout=aiohttp.ClientTimeout(total=10),
+        )
+        # Quick health check
         try:
-            self.client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=3000)
-            self.client.admin.command("ping")  # Verify connection
-            db = self.client[MONGO_DB]
-            self.collection = db[MONGO_COLLECTION]
-
-            # Unique index on (service, username)
-            self.collection.create_index(
-                [("service", 1), ("username", 1)],
-                unique=True,
-                name="service_username_unique"
-            )
-
-            log.info(f"MongoDB connected → {MONGO_DB}.{MONGO_COLLECTION}")
-
-        except mongo_errors.ServerSelectionTimeoutError as e:
-            log.error(f"Could not connect to MongoDB: {e}")
+            async with self._session.get("/password") as resp:
+                if resp.status == 200:
+                    log.info(f"API reachable at {self.base_url}")
+                else:
+                    log.warning(f"API returned {resp.status} on health check")
+        except Exception as e:
+            log.error(f"Cannot reach API at {self.base_url}: {e}")
             raise
 
-    def upsert_passwords(self, entries: list[dict]) -> dict:
-        """
-        Insert or update password entries.
-        Required fields: service, username, password
-        """
-        inserted, updated, errors = 0, 0, 0
+    async def save_password(self, domain: str, user: str, password: str) -> dict:
+        """POST /password/save  →  {domain, user, password}"""
+        body = {"domain": domain, "user": user, "password": password}
+        async with self._session.post("/password/save", json=body) as resp:
+            data = await resp.json()
+            if resp.status == 200:
+                log.info(f"Saved via API: {domain} / {user}")
+                return {"ok": True, **data}
+            else:
+                log.error(f"API error {resp.status}: {data}")
+                return {"ok": False, "status": resp.status, "detail": data}
 
+    async def save_batch(self, entries: list[dict]) -> dict:
+        """Save a list of entries. Each entry must have service/username/password."""
+        saved, errors = 0, 0
         for entry in entries:
-            if not all(k in entry for k in ("service", "username", "password")):
-                log.warning(f"Invalid entry (missing fields): {entry}")
+            domain   = entry.get("service", entry.get("domain", "")).strip().lower()
+            user     = entry.get("username", entry.get("user", "")).strip()
+            password = entry.get("password", "")
+
+            if not domain or not user or not password:
+                log.warning(f"Skipping invalid entry (missing fields): {entry}")
                 errors += 1
                 continue
 
-            doc = {
-                "service":    entry["service"].strip().lower(),
-                "username":   entry["username"].strip(),
-                "password":   entry["password"],
-                "notes":      entry.get("notes", ""),
-                "updated_at": datetime.now(timezone.utc),
-            }
-
             try:
-                result = self.collection.update_one(
-                    filter={"service": doc["service"], "username": doc["username"]},
-                    update={
-                        "$set": doc,
-                        "$setOnInsert": {"created_at": datetime.now(timezone.utc)}
-                    },
-                    upsert=True
-                )
-
-                if result.upserted_id:
-                    inserted += 1
-                    log.info(f"Inserted: {doc['service']} / {doc['username']}")
+                result = await self.save_password(domain, user, password)
+                if result.get("ok"):
+                    saved += 1
                 else:
-                    updated += 1
-                    log.info(f"Updated: {doc['service']} / {doc['username']}")
-
-            except mongo_errors.DuplicateKeyError:
-                errors += 1
+                    errors += 1
             except Exception as e:
-                log.error(f"Error saving {entry}: {e}")
+                log.error(f"Error saving {domain}/{user}: {e}")
                 errors += 1
 
-        return {"inserted": inserted, "updated": updated, "errors": errors}
+        return {"saved": saved, "errors": errors}
 
-    def close(self):
-        if self.client:
-            self.client.close()
+    async def close(self):
+        if self._session:
+            await self._session.close()
 
 
 # ─── BLE Server ───────────────────────────────────────────────────────────────
 
 class BLEPasswordServer:
     def __init__(self):
-        self.store = PasswordStore()
+        self.api = PasswordAPI()
         self.server: BlessServer = None
         self._buffer = bytearray()
-        self._loop = asyncio.get_event_loop()
+        self._loop = None  # Set in start()
 
     # Called whenever the client writes to RX characteristic
     def on_write(self, characteristic: BlessGATTCharacteristic, value: bytearray, **kwargs):
@@ -140,7 +133,7 @@ class BLEPasswordServer:
             entries = payload.get("passwords", [])
             sender  = payload.get("device_id", "unknown")
 
-            result = self.store.upsert_passwords(entries)
+            result = await self.api.save_batch(entries)
             status_msg = {"ok": True, "sender": sender, **result}
 
         except json.JSONDecodeError:
@@ -163,7 +156,8 @@ class BLEPasswordServer:
             log.warning(f"Could not notify status: {e}")
 
     async def start(self):
-        self.store.connect()
+        self._loop = asyncio.get_running_loop()
+        await self.api.open()
 
         self.server = BlessServer(name="PasswordVault-BLE", loop=self._loop)
         self.server.read_request_func  = None
@@ -197,7 +191,7 @@ class BLEPasswordServer:
             log.info("Stopping server...")
         finally:
             await self.server.stop()
-            self.store.close()
+            await self.api.close()
             log.info("Server stopped cleanly.")
 
 
