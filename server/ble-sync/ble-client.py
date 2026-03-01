@@ -6,12 +6,14 @@ import logging
 from datetime import datetime, timezone
 
 from bleak import BleakClient, BleakScanner, BleakError
+from crypto_utils import encrypt_payload
 
 
 # ─── UUIDs (must match the server exactly) ────────────────────────────────────
 SERVICE_UUID     = "12345678-1234-5678-1234-56789abcdef0"
 CHAR_RX_UUID     = "12345678-1234-5678-1234-56789abcdef1"
 CHAR_STATUS_UUID = "12345678-1234-5678-1234-56789abcdef2"
+CHAR_PUBKEY_UUID = "12345678-1234-5678-1234-56789abcdef3"  # server's ephemeral pub key
 
 SERVER_NAME     = "PasswordVault-BLE"
 CHUNK_DELIMITER = b"<<END>>"
@@ -168,6 +170,13 @@ class BLEPasswordClient:
         }
         return json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
+    def build_encrypted_payload(self, passwords: list[dict], server_eph_pub: bytes) -> bytes:
+        """Encrypt payload using the server's ephemeral DH public key (ECDH + AES-GCM)."""
+        plaintext = self.build_payload(passwords)
+        encrypted = encrypt_payload(plaintext, server_eph_pub)
+        log.info(f"Payload encrypted: {len(plaintext)}B → {len(encrypted)}B")
+        return encrypted
+
     async def send_chunked(self, client: BleakClient, data: bytes) -> bool:
         effective_mtu = max(20, client.mtu_size - 3)
         chunk_size = min(effective_mtu, 512)
@@ -214,10 +223,14 @@ class BLEPasswordClient:
                 log.error("Service UUID not found on server")
                 return False
 
-            if not service.get_characteristic(CHAR_RX_UUID) \
-               or not service.get_characteristic(CHAR_STATUS_UUID):
-                log.error("Required GATT characteristics not found")
-                return False
+            for uuid, label in [
+                (CHAR_RX_UUID,     "RX"),
+                (CHAR_STATUS_UUID, "STATUS"),
+                (CHAR_PUBKEY_UUID, "PUBKEY"),
+            ]:
+                if not service.get_characteristic(uuid):
+                    log.error(f"Required GATT characteristic not found: {label}")
+                    return False
 
             log.info("GATT services verified")
             return True
@@ -247,7 +260,11 @@ class BLEPasswordClient:
 
             await client.start_notify(CHAR_STATUS_UUID, self._on_status_notify)
 
-            payload = self.build_payload(passwords)
+            # ── ECDH: read server's ephemeral public key over BLE ──
+            server_eph_pub = bytes(await client.read_gatt_char(CHAR_PUBKEY_UUID))
+            log.info(f"Server ephemeral pub key received ({len(server_eph_pub)} bytes)")
+
+            payload = self.build_encrypted_payload(passwords, server_eph_pub)
             ok = await self.send_chunked(client, payload)
             if not ok:
                 return False
