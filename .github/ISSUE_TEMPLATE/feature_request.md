@@ -1,9 +1,10 @@
 ---
-name: Feature Request
-about: Suggest a new feature or improvement
-title: '[FEATURE] Brief description of the feature'
-labels: 'type:feature'
+name: Feature request
+about: Suggest an idea for this project
+title: ''
+labels: enhancement
 assignees: ''
+
 ---
 
 ## Description

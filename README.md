@@ -214,3 +214,6 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file
 - Join discussions and share feedback
 - Report bugs and request features
 - Contribute code, docs, or translations
+
+### Attrbution
+- For the extension icon: https://www.flaticon.com/free-icon/password_4543404

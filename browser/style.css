@@ -1,0 +1,48 @@
+#secure-pass-notice {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 280px;
+    background: white;
+    color: #222;
+    padding: 16px;
+    border-radius: 10px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    font-family: sans-serif;
+    font-size: 14px;
+    z-index: 999999;
+    animation: slideIn 0.3s ease;
+}
+
+#secure-pass-notice button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    background: #4caf50;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        transform 0.1s ease,
+        filter 0.2s ease;
+}
+
+#secure-pass-notice button:hover {
+    filter: brightness(0.9);
+}
+
+#secure-pass-notice button:active {
+    transform: scale(0.97);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
