@@ -1,5 +1,7 @@
 // content.js
 
+let generatedPasswordFromAPI = null;
+
 // Helpers para UI
 const setNativeValue = (element, value) => {
   const valueSetter = Object.getOwnPropertyDescriptor(element, "value")?.set;
@@ -102,6 +104,8 @@ function showGenerateNotice(field, domain) {
           throw new Error("No se pudo generar la contraseña");
         }
 
+        generatedPasswordFromAPI = newPass;
+
         setNativeValue(field, newPass);
 
         notice.innerHTML = "Contraseña generada.";
@@ -123,7 +127,13 @@ function showGenerateNotice(field, domain) {
   const passwordField = document.querySelector('input[type="password"]');
   if (!passwordField) return;
 
-  const domain = window.location.hostname;
+  let domain = window.location.hostname;
+
+  if (!domain || domain.trim() === "") {
+    domain = "local";
+  }
+
+  console.log("domain:", domain);
 
   const existing = await sendMessageToBackground({
     type: "GET_PASSWORD",
@@ -139,7 +149,7 @@ function showGenerateNotice(field, domain) {
   const form = passwordField.closest("form");
   if (form) {
     form.addEventListener("submit", async () => {
-      const finalPassword = passwordField.value;
+      const finalPassword = generatedPasswordFromAPI || passwordField.value;
       const userField = detectUserFieldFromPassword(passwordField);
       const user = userField ? userField.value : null;
 
