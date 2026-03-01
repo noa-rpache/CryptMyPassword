@@ -95,6 +95,21 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
           result = await callApi(`/password/${message.domain}`, "DELETE");
           console.log("[BG] Contraseña eliminada:", result);
           break;
+        case "BLE_SEND":
+          console.log("[BG] Enviando contraseñas por BLE...");
+          result = await callApi("/ble/send", "POST");
+          console.log("[BG] BLE send resultado:", result);
+          break;
+        case "BLE_RECEIVE_START":
+          console.log("[BG] Iniciando servidor BLE (recibir)...");
+          result = await callApi("/ble/receive", "POST");
+          console.log("[BG] BLE receive resultado:", result);
+          break;
+        case "BLE_RECEIVE_STOP":
+          console.log("[BG] Deteniendo servidor BLE...");
+          result = await callApi("/ble/stop", "POST");
+          console.log("[BG] BLE stop resultado:", result);
+          break;
         default:
           console.warn("[BG] Tipo de mensaje desconocido:", message.type);
       }

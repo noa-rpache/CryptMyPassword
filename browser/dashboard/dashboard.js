@@ -42,6 +42,19 @@ document.getElementById("verify-btn").addEventListener("click", () => {
   verifyPasswords();
 });
 
+// ── BLE Buttons ──
+document.getElementById("ble-send-btn").addEventListener("click", () => {
+  bleSend();
+});
+
+document.getElementById("ble-receive-btn").addEventListener("click", () => {
+  bleReceiveStart();
+});
+
+document.getElementById("ble-stop-btn").addEventListener("click", () => {
+  bleReceiveStop();
+});
+
 //------------------------------------------------------
 
 // Envía mensaje al background y recibe respuesta
@@ -468,6 +481,107 @@ async function verifyPasswords() {
     verifyBtn.textContent = "Verificar contraseñas";
     console.log("[VERIFY] Texto del botón restaurado");
     console.log("[VERIFY] ❌ Verificación finalizada con error");
+  }
+}
+
+// ── BLE Functions ──
+
+function showBleStatus(elementId, message, type) {
+  const el = document.getElementById(elementId);
+  el.textContent = message;
+  el.className = `ble-status ble-status-${type}`;
+  el.classList.remove("hidden");
+}
+
+function hideBleStatus(elementId) {
+  const el = document.getElementById(elementId);
+  el.classList.add("hidden");
+}
+
+async function bleSend() {
+  const btn = document.getElementById("ble-send-btn");
+  const statusId = "ble-send-status";
+
+  btn.disabled = true;
+  btn.textContent = "Enviando...";
+  showBleStatus(statusId, "Buscando dispositivo BLE cercano y enviando contraseñas...", "info");
+
+  try {
+    const result = await sendMessageToBackground({ type: "BLE_SEND" });
+    console.log("[BLE-SEND] Resultado:", result);
+
+    if (result && result.success) {
+      showBleStatus(statusId, result.message || "Contraseñas enviadas correctamente por Bluetooth.", "success");
+    } else {
+      showBleStatus(statusId, result?.detail || result?.message || "Error desconocido al enviar por Bluetooth.", "error");
+    }
+  } catch (err) {
+    console.error("[BLE-SEND] Error:", err);
+    showBleStatus(statusId, "Error de conexión al enviar por Bluetooth.", "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Enviar por Bluetooth";
+  }
+}
+
+async function bleReceiveStart() {
+  const btn = document.getElementById("ble-receive-btn");
+  const stopBtn = document.getElementById("ble-stop-btn");
+  const statusId = "ble-receive-status";
+
+  btn.disabled = true;
+  btn.textContent = "Activando...";
+  showBleStatus(statusId, "Iniciando servidor BLE...", "info");
+
+  try {
+    const result = await sendMessageToBackground({ type: "BLE_RECEIVE_START" });
+    console.log("[BLE-RECEIVE] Resultado:", result);
+
+    if (result && result.success) {
+      showBleStatus(statusId, result.message || "Servidor BLE activo. Esperando conexión entrante...", "success");
+      btn.classList.add("hidden");
+      stopBtn.classList.remove("hidden");
+    } else {
+      showBleStatus(statusId, result?.detail || result?.message || "Error al activar la recepción Bluetooth.", "error");
+      btn.disabled = false;
+      btn.textContent = "Activar recepción";
+    }
+  } catch (err) {
+    console.error("[BLE-RECEIVE] Error:", err);
+    showBleStatus(statusId, "Error de conexión al activar recepción Bluetooth.", "error");
+    btn.disabled = false;
+    btn.textContent = "Activar recepción";
+  }
+}
+
+async function bleReceiveStop() {
+  const btn = document.getElementById("ble-receive-btn");
+  const stopBtn = document.getElementById("ble-stop-btn");
+  const statusId = "ble-receive-status";
+
+  stopBtn.disabled = true;
+  stopBtn.textContent = "Deteniendo...";
+
+  try {
+    const result = await sendMessageToBackground({ type: "BLE_RECEIVE_STOP" });
+    console.log("[BLE-STOP] Resultado:", result);
+
+    if (result && result.success) {
+      showBleStatus(statusId, result.message || "Servidor BLE detenido.", "info");
+      setTimeout(() => hideBleStatus(statusId), 4000);
+    } else {
+      showBleStatus(statusId, result?.detail || result?.message || "Error al detener el servidor BLE.", "error");
+    }
+  } catch (err) {
+    console.error("[BLE-STOP] Error:", err);
+    showBleStatus(statusId, "Error de conexión al detener servidor BLE.", "error");
+  } finally {
+    stopBtn.classList.add("hidden");
+    stopBtn.disabled = false;
+    stopBtn.textContent = "Detener recepción";
+    btn.classList.remove("hidden");
+    btn.disabled = false;
+    btn.textContent = "Activar recepción";
   }
 }
 

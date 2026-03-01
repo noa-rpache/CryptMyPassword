@@ -4,6 +4,8 @@
 
 // content.js
 
+let generatedPasswordFromAPI = null;
+
 // Helpers para UI
 const setNativeValue = (element, value) => {
   const valueSetter = Object.getOwnPropertyDescriptor(element, "value")?.set;
@@ -84,15 +86,43 @@ function showGenerateNotice(field, domain) {
   document
     .getElementById("generate-secure-pass")
     .addEventListener("click", async () => {
-      const newPassObj = await sendMessageToBackground({
-        type: "GENERATE_PASSWORD",
-      });
-      const newPass = newPassObj?.password;
+      const button = document.getElementById("generate-secure-pass");
 
-      setNativeValue(field, newPass);
+      if (button.disabled) return;
 
-      notice.innerHTML = "Contraseña generada.";
-      setTimeout(() => notice.remove(), 2000);
+      button.disabled = true;
+      button.textContent = "Generando...";
+      button.style.backgroundColor = "#d1d5db"; // gris claro
+      button.style.color = "#6b7280"; // texto gris oscuro
+      button.style.border = "1px solid #9ca3af";
+      button.style.cursor = "not-allowed";
+
+      try {
+        const newPassObj = await sendMessageToBackground({
+          type: "GENERATE_PASSWORD",
+        });
+
+        const newPass = newPassObj?.password;
+
+        if (!newPass) {
+          throw new Error("No se pudo generar la contraseña");
+        }
+
+        generatedPasswordFromAPI = newPass;
+
+        setNativeValue(field, newPass);
+
+        notice.innerHTML = "Contraseña generada.";
+        setTimeout(() => notice.remove(), 2000);
+      } catch (error) {
+        console.error("Error generando contraseña:", error);
+
+        // Restaurar botón si falla
+        button.disabled = false;
+        button.textContent = originalText;
+        button.style.opacity = "1";
+        button.style.cursor = "pointer";
+      }
     });
 }
 
@@ -101,7 +131,13 @@ function showGenerateNotice(field, domain) {
   const passwordField = document.querySelector('input[type="password"]');
   if (!passwordField) return;
 
-  const domain = window.location.hostname;
+  let domain = window.location.hostname;
+
+  if (!domain || domain.trim() === "") {
+    domain = "local";
+  }
+
+  console.log("domain:", domain);
 
   const existing = await sendMessageToBackground({
     type: "GET_PASSWORD",
@@ -117,7 +153,7 @@ function showGenerateNotice(field, domain) {
   const form = passwordField.closest("form");
   if (form) {
     form.addEventListener("submit", async () => {
-      const finalPassword = passwordField.value;
+      const finalPassword = generatedPasswordFromAPI || passwordField.value;
       const userField = detectUserFieldFromPassword(passwordField);
       const user = userField ? userField.value : null;
 
