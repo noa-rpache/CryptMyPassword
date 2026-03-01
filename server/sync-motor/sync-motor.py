@@ -59,7 +59,9 @@ class P2PClient:
         self.multicast_group = "239.255.0.42"  # Grupo multicast privado (rango 239.0.0.0/8 = admin-scoped)
         self.multicast_port = 6003  # Puerto multicast para anuncios
         self.local_ip = self._get_local_ip()  # IP LAN para forzar multicast en la interfaz correcta
+        self.broadcast_addr = self._get_broadcast_addr()  # Broadcast de la subred
         print(f"[{self.device_id}] 🌐 IP local detectada: {self.local_ip}")
+        print(f"[{self.device_id}] 📡 Broadcast address: {self.broadcast_addr}")
         
 # No requiere inicialización con X25519 (instantáneo)
         print(f"[{self.device_id}] ✅ Criptografía X25519 lista (instantáneo)")
@@ -94,6 +96,39 @@ class P2PClient:
             return ip
         except Exception:
             return "0.0.0.0"
+
+    @staticmethod
+    def _get_broadcast_addr():
+        """Calcula la dirección de broadcast de la subred LAN leyendo /proc/net/fib_trie."""
+        try:
+            local_ip = P2PClient._get_local_ip()
+            if local_ip == "0.0.0.0":
+                return "255.255.255.255"
+            # Leer la tabla de rutas para encontrar la máscara
+            import struct
+            with open("/proc/net/fib_trie", "r") as f:
+                content = f.read()
+            # Fallback: calcular con /21 si es 10.x.x.x (típico de redes universitarias)
+            # Método genérico: usar netifaces-free approach
+            ip_parts = list(map(int, local_ip.split(".")))
+            # Buscar en las interfaces del sistema
+            import subprocess
+            result = subprocess.run(["ip", "-o", "-4", "addr", "show"], capture_output=True, text=True)
+            for line in result.stdout.strip().split("\n"):
+                if local_ip in line:
+                    # Extraer la máscara CIDR (ej: 10.20.29.60/21)
+                    parts = line.split()
+                    for p in parts:
+                        if "/" in p and local_ip in p:
+                            cidr = int(p.split("/")[1])
+                            mask = (0xFFFFFFFF << (32 - cidr)) & 0xFFFFFFFF
+                            ip_int = struct.unpack("!I", bytes(ip_parts))[0]
+                            bcast_int = ip_int | (~mask & 0xFFFFFFFF)
+                            bcast = socket.inet_ntoa(struct.pack("!I", bcast_int))
+                            return bcast
+            return "255.255.255.255"
+        except Exception:
+            return "255.255.255.255"
 
     # -------------------
     # Cifrado/descifrado de contraseñas individuales (AES-GCM + Argon2id)
@@ -144,9 +179,20 @@ class P2PClient:
             # Forzar envío por la interfaz LAN (no loopback)
             sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(self.local_ip))
             sock.settimeout(2)
-            sock.sendto(json.dumps(announcement).encode(), (self.multicast_group, self.multicast_port))
+            data = json.dumps(announcement).encode()
+            # 1) Enviar por multicast
+            sock.sendto(data, (self.multicast_group, self.multicast_port))
+            # 2) Enviar también por broadcast (fallback si la red filtra multicast)
+            try:
+                bsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                bsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                bsock.sendto(data, (self.broadcast_addr, self.multicast_port))
+                bsock.sendto(data, ("255.255.255.255", self.multicast_port))
+                bsock.close()
+            except Exception:
+                pass  # Si broadcast falla, no es crítico
             sock.close()
-            print(f"[{self.device_id}] 📡 Anuncio enviado al grupo multicast {self.multicast_group}:{self.multicast_port}")
+            print(f"[{self.device_id}] 📡 Anuncio enviado (multicast {self.multicast_group} + broadcast {self.broadcast_addr})")
             return True
         except Exception as e:
             print(f"[{self.device_id}] ⚠️  Error enviando anuncio multicast: {type(e).__name__}: {e}")
