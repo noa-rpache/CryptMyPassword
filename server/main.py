@@ -1,5 +1,6 @@
 import os
 import sys
+import random
 import importlib.util
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -64,7 +65,7 @@ collection = db["passwords"]
 p2p_client = None
 
 # Configuración del cliente P2P (puertos fijos)
-DEVICE_ID = os.getenv("DEVICE_ID", "ServerDevice")
+DEVICE_ID = os.getenv("DEVICE_ID", f"Node{random.randint(10000, 99999)}")
 MASTER_PASSWORD = os.getenv("MASTER_PASSWORD", "default_master_password")
 P2P_LISTEN_PORT = 5000  # Puerto fijo para sincronización TCP
 P2P_ANNOUNCEMENT_PORT = 6000  # Puerto fijo para anuncios multicast
