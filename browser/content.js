@@ -80,15 +80,41 @@ function showGenerateNotice(field, domain) {
   document
     .getElementById("generate-secure-pass")
     .addEventListener("click", async () => {
-      const newPassObj = await sendMessageToBackground({
-        type: "GENERATE_PASSWORD",
-      });
-      const newPass = newPassObj?.password;
+      const button = document.getElementById("generate-secure-pass");
 
-      setNativeValue(field, newPass);
+      if (button.disabled) return;
 
-      notice.innerHTML = "Contraseña generada.";
-      setTimeout(() => notice.remove(), 2000);
+      button.disabled = true;
+      button.textContent = "Generando...";
+      button.style.backgroundColor = "#d1d5db"; // gris claro
+      button.style.color = "#6b7280"; // texto gris oscuro
+      button.style.border = "1px solid #9ca3af";
+      button.style.cursor = "not-allowed";
+
+      try {
+        const newPassObj = await sendMessageToBackground({
+          type: "GENERATE_PASSWORD",
+        });
+
+        const newPass = newPassObj?.password;
+
+        if (!newPass) {
+          throw new Error("No se pudo generar la contraseña");
+        }
+
+        setNativeValue(field, newPass);
+
+        notice.innerHTML = "Contraseña generada.";
+        setTimeout(() => notice.remove(), 2000);
+      } catch (error) {
+        console.error("Error generando contraseña:", error);
+
+        // Restaurar botón si falla
+        button.disabled = false;
+        button.textContent = originalText;
+        button.style.opacity = "1";
+        button.style.cursor = "pointer";
+      }
     });
 }
 
