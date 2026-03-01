@@ -1,38 +1,39 @@
-
+# SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz@gmailcom  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+#
+# SPDX-License-Identifier: Apache-2.0
 
 import asyncio
 import json
 import logging
 from datetime import datetime, timezone
 
-from bleak import BleakClient, BleakScanner, BleakError
-
+from bleak import BleakClient, BleakError, BleakScanner
 
 # ─── UUIDs (must match the server exactly) ────────────────────────────────────
-SERVICE_UUID     = "12345678-1234-5678-1234-56789abcdef0"
-CHAR_RX_UUID     = "12345678-1234-5678-1234-56789abcdef1"
+SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"
+CHAR_RX_UUID = "12345678-1234-5678-1234-56789abcdef1"
 CHAR_STATUS_UUID = "12345678-1234-5678-1234-56789abcdef2"
 
-SERVER_NAME     = "PasswordVault-BLE"
+SERVER_NAME = "PasswordVault-BLE"
 CHUNK_DELIMITER = b"<<END>>"
-DEVICE_ID       = "client-laptop-01"
+DEVICE_ID = "client-laptop-01"
 
 
 # ─── Robustness Parameters ────────────────────────────────────────────────────
-SCAN_TIMEOUT_BASE    = 8.0
-SCAN_MAX_ATTEMPTS    = 4
-CONNECT_MAX_RETRIES  = 5
+SCAN_TIMEOUT_BASE = 8.0
+SCAN_MAX_ATTEMPTS = 4
+CONNECT_MAX_RETRIES = 5
 CONNECT_BACKOFF_BASE = 1.5
-CHUNK_INTER_DELAY    = 0.02
-CHUNK_RETRY_MAX      = 3
-STATUS_TIMEOUT       = 15.0
+CHUNK_INTER_DELAY = 0.02
+CHUNK_RETRY_MAX = 3
+STATUS_TIMEOUT = 15.0
 
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S"
+    datefmt="%H:%M:%S",
 )
 log = logging.getLogger("BLE-Client")
 
@@ -40,33 +41,34 @@ log = logging.getLogger("BLE-Client")
 # FIXME ─── Sample Data (replace in production) ─────────────────────────────────────
 SAMPLE_PASSWORDS = [
     {
-        "service":  "github.com",
+        "service": "github.com",
         "username": "usuario@email.com",
         "password": "SuperSecreta123!",
-        "notes":    "Cuenta principal"
+        "notes": "Cuenta principal",
     },
     {
-        "service":  "gmail.com",
+        "service": "gmail.com",
         "username": "usuario@gmail.com",
         "password": "OtraContraseña456#",
-        "notes":    ""
+        "notes": "",
     },
     {
-        "service":  "netflix.com",
+        "service": "netflix.com",
         "username": "perfil_familia",
         "password": "Netflix2024$",
-        "notes":    "Plan familiar"
+        "notes": "Plan familiar",
     },
     {
-        "service":  "banco.es",
+        "service": "banco.es",
         "username": "usuario_banco_42",
         "password": "PinBancoSeguro789",
-        "notes":    "No compartir"
+        "notes": "No compartir",
     },
 ]
 
 
 # ─── BLE Client ───────────────────────────────────────────────────────────────
+
 
 class BLEPasswordClient:
     def __init__(self):
@@ -87,8 +89,10 @@ class BLEPasswordClient:
         """
         for attempt in range(1, SCAN_MAX_ATTEMPTS + 1):
             timeout = SCAN_TIMEOUT_BASE + (attempt - 1) * 4.0
-            log.info(f"Scanning attempt {attempt}/{SCAN_MAX_ATTEMPTS} "
-                     f"(timeout={timeout:.0f}s)...")
+            log.info(
+                f"Scanning attempt {attempt}/{SCAN_MAX_ATTEMPTS} "
+                f"(timeout={timeout:.0f}s)..."
+            )
 
             try:
                 device = await BleakScanner.find_device_by_name(
@@ -110,9 +114,9 @@ class BLEPasswordClient:
                     service_uuids = [str(u).lower() for u in adv_data.service_uuids]
 
                     if (
-                        name == SERVER_NAME or
-                        SERVICE_UUID.lower() in service_uuids or
-                        SERVER_NAME.lower() in name.lower()
+                        name == SERVER_NAME
+                        or SERVICE_UUID.lower() in service_uuids
+                        or SERVER_NAME.lower() in name.lower()
                     ):
                         log.info(f"Found (strategy 2): {name} [{addr}]")
                         return addr
@@ -124,7 +128,9 @@ class BLEPasswordClient:
             if attempt < SCAN_MAX_ATTEMPTS:
                 await asyncio.sleep(2.0 * attempt)
 
-        log.error(f"Server '{SERVER_NAME}' not found after {SCAN_MAX_ATTEMPTS} attempts")
+        log.error(
+            f"Server '{SERVER_NAME}' not found after {SCAN_MAX_ATTEMPTS} attempts"
+        )
         return None
 
     async def connect_with_retry(self, address: str) -> BleakClient | None:
@@ -178,7 +184,7 @@ class BLEPasswordClient:
         log.info(f"Sending {len(data)} bytes in {total_chunks} chunk(s)")
 
         for i in range(0, len(full_data), chunk_size):
-            chunk = full_data[i:i + chunk_size]
+            chunk = full_data[i : i + chunk_size]
 
             if not client.is_connected or self._disconnected.is_set():
                 log.error("Connection lost during transfer")
@@ -214,8 +220,9 @@ class BLEPasswordClient:
                 log.error("Service UUID not found on server")
                 return False
 
-            if not service.get_characteristic(CHAR_RX_UUID) \
-               or not service.get_characteristic(CHAR_STATUS_UUID):
+            if not service.get_characteristic(
+                CHAR_RX_UUID
+            ) or not service.get_characteristic(CHAR_STATUS_UUID):
                 log.error("Required GATT characteristics not found")
                 return False
 
@@ -294,6 +301,7 @@ class BLEPasswordClient:
 
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────
+
 
 async def main():
     log.info("=" * 55)

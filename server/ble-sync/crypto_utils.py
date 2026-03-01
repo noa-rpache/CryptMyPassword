@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Noa Rodríguez noa.rpache@gmail.com  Pablo Diz pablo.diz@gmailcom  Hugo Freire hugo.freire@udc.es  Eloy Sastre elhoyyy@gmail.com
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """
 ECDH session-key encryption: X25519 + HKDF-SHA256 + AES-256-GCM.
 Requires: pip install cryptography
@@ -12,27 +16,36 @@ Wire format produced by encrypt_payload():
   [12 bytes: AES-GCM nonce]
   [ N bytes: ciphertext + 16-byte GCM tag]
 """
+
 import os
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives.hashes import SHA256
+
+from cryptography.hazmat.primitives.asymmetric.x25519 import (
+    X25519PrivateKey,
+    X25519PublicKey,
+)
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.hashes import SHA256
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import (
-    Encoding, PublicFormat, PrivateFormat, NoEncryption,
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    PublicFormat,
 )
 
-
 # ─── Key Generation ───────────────────────────────────────────────────────────
+
 
 def generate_keypair() -> tuple[bytes, bytes]:
     """Return (private_key_raw_bytes, public_key_raw_bytes) — both 32 bytes."""
     priv = X25519PrivateKey.generate()
     priv_bytes = priv.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
-    pub_bytes  = priv.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    pub_bytes = priv.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
     return priv_bytes, pub_bytes
 
 
 # ─── HKDF Key Derivation ─────────────────────────────────────────────────────
+
 
 def _derive_aes_key(shared_secret: bytes, salt: bytes) -> bytes:
     """Derive a 256-bit AES key from a DH shared secret via HKDF-SHA256."""
@@ -46,6 +59,7 @@ def _derive_aes_key(shared_secret: bytes, salt: bytes) -> bytes:
 
 
 # ─── Encrypt (Client side) ────────────────────────────────────────────────────
+
 
 def encrypt_payload(plaintext: bytes, server_eph_pub_bytes: bytes) -> bytes:
     """
@@ -68,15 +82,15 @@ def encrypt_payload(plaintext: bytes, server_eph_pub_bytes: bytes) -> bytes:
 
     # 2. DH shared secret
     cli_priv = X25519PrivateKey.from_private_bytes(cli_priv_bytes)
-    srv_pub  = X25519PublicKey.from_public_bytes(server_eph_pub_bytes)
-    shared   = cli_priv.exchange(srv_pub)
+    srv_pub = X25519PublicKey.from_public_bytes(server_eph_pub_bytes)
+    shared = cli_priv.exchange(srv_pub)
 
     # 3. Derive AES key — salt binds both public keys for domain separation
     aes_key = _derive_aes_key(shared, salt=cli_pub_bytes + server_eph_pub_bytes)
 
     # 4. Encrypt
-    nonce      = os.urandom(12)
-    aesgcm     = AESGCM(aes_key)
+    nonce = os.urandom(12)
+    aesgcm = AESGCM(aes_key)
     ciphertext = aesgcm.encrypt(nonce, plaintext, associated_data=cli_pub_bytes)
 
     # 5. Serialise: cli_pub | nonce | ciphertext+tag
@@ -84,6 +98,7 @@ def encrypt_payload(plaintext: bytes, server_eph_pub_bytes: bytes) -> bytes:
 
 
 # ─── Decrypt (Server side) ────────────────────────────────────────────────────
+
 
 def decrypt_payload(data: bytes, server_eph_priv_bytes: bytes) -> bytes:
     """
@@ -97,13 +112,13 @@ def decrypt_payload(data: bytes, server_eph_priv_bytes: bytes) -> bytes:
     """
     # 1. Unpack fixed-size fields
     cli_pub_bytes = data[:32]
-    nonce         = data[32:44]
-    ciphertext    = data[44:]
+    nonce = data[32:44]
+    ciphertext = data[44:]
 
     # 2. DH shared secret
     srv_priv = X25519PrivateKey.from_private_bytes(server_eph_priv_bytes)
-    cli_pub  = X25519PublicKey.from_public_bytes(cli_pub_bytes)
-    shared   = srv_priv.exchange(cli_pub)
+    cli_pub = X25519PublicKey.from_public_bytes(cli_pub_bytes)
+    shared = srv_priv.exchange(cli_pub)
 
     # 3. Derive AES key — same salt as the client used
     srv_pub_bytes = srv_priv.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)

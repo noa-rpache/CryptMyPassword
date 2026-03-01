@@ -205,6 +205,7 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file
 
 - [ ] User installation
 - [ ] Internationalization (i18n)
+- [ ] Improve form fields detection
 
 ### Community
 
