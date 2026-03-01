@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="style.css" />
+        <title>CryptMyPassword</title>
+    </head>
+    <body>
+        <header>
+            <h1>🔐 CryptMyPassword</h1>
+            <button id="verify-btn">Comprobar integridad</button>
+        </header>
+
+        <!-- Sección: Contraseñas -->
+        <section class="section passwords-section">
+            <div class="section-header">
+                <h2>Contraseñas guardadas</h2>
+            </div>
+            <div class="section-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Dominio</th>
+                            <th>Usuario</th>
+                            <th>Contraseña</th>
+                        </tr>
+                    </thead>
+                    <tbody id="password-table"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Sección: Sincronización P2P -->
+        <section class="section sync-section">
+            <div class="section-header">
+                <h2>Sincronización P2P</h2>
+                <div id="my-device-info" class="my-device-info"></div>
+            </div>
+
+            <div class="sync-layout">
+                <!-- Peers descubiertos -->
+                <div class="sync-panel peers-panel">
+                    <div class="panel-header">
+                        <h3>Dispositivos en la red</h3>
+                        <div class="panel-actions">
+                            <button id="sync-btn">🔍 Buscar peers</button>
+                            <button id="refresh-btn">🔄 Refrescar</button>
+                        </div>
+                    </div>
+                    <div id="devices-list" class="devices-list">
+                        <div class="no-devices">Pulsa "Buscar peers" para descubrir dispositivos</div>
+                    </div>
+                </div>
+
+                <!-- Sincronizar -->
+                <div class="sync-panel connect-panel">
+                    <h3>Conectar con peer</h3>
+                    <p class="connect-hint">Selecciona un dispositivo de la lista o introduce la IP manualmente.</p>
+                    <div class="connect-form">
+                        <div class="form-row">
+                            <label for="manual-ip">Dirección IP</label>
+                            <input type="text" id="manual-ip" placeholder="ej: 192.168.1.50" />
+                        </div>
+                        <div class="form-row">
+                            <label for="manual-port">Puerto</label>
+                            <input type="number" id="manual-port" value="5000" min="1" max="65535" />
+                        </div>
+                        <button id="manual-sync-btn" class="connect-btn-main">⚡ Sincronizar</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <script src="dashboard.js"></script>
+    </body>
+</html>

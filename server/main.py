@@ -16,7 +16,6 @@ from pymongo import MongoClient
 from .auth import API_KEY, verify_api_key
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "gen_password"))
-print(f"[*] API_KEY configurada: {API_KEY}")
 from entropy_engine import (  # noqa: E402
     _get_mongo_collection,
     is_quantum_worker_alive,
@@ -155,7 +154,7 @@ Devuelve la lista de dominios con contraseñas comprometidas:
 """
 
 
-@app.get("/password/audit")
+@app.get("/audit")
 async def audit_passwords(api_key: str = Depends(verify_api_key)):
     if not p2p_client:
         return {"error": "Cliente P2P no inicializado"}
