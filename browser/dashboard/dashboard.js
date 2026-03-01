@@ -18,20 +18,18 @@ document.getElementById("sync-btn").addEventListener("click", () => {
 
 document.getElementById("refresh-btn").addEventListener("click", () => {
   loadDevices();
+  loadPasswords();
 });
 
-// Botones conectar dispositivos
-document.querySelectorAll(".connect-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const deviceName =
-      btn.parentElement.querySelector(".device-name").textContent;
-    sendMessageToBackground({
-      type: "LINK_DEVICE",
-      name: deviceName,
-      ip: "mock-ip",
-    });
-    console.log("Conectar a dispositivo");
-  });
+// Botón sincronización manual
+document.getElementById("manual-sync-btn").addEventListener("click", () => {
+  const ip = document.getElementById("manual-ip").value.trim();
+  const port = parseInt(document.getElementById("manual-port").value) || 5000;
+  if (!ip) {
+    alert("Introduce la IP del peer");
+    return;
+  }
+  syncWithPeer(ip, port, "Manual");
 });
 
 // Botón verificar contraseñas
@@ -72,16 +70,25 @@ function sendMessageToBackground(message) {
 function togglePassword(input, btn) {
   if (input.type === "password") {
     input.type = "text";
-    btn.textContent = "🙈";
+    btn.innerHTML = SVG_ICONS.eyeClosed;
+    btn.classList.add("active");
   } else {
     input.type = "password";
-    btn.textContent = "👁";
+    btn.innerHTML = SVG_ICONS.eyeOpen;
+    btn.classList.remove("active");
   }
 }
 
-function copyPassword(password) {
+function copyPassword(password, btn) {
   navigator.clipboard.writeText(password);
-  alert("Contraseña copiada al portapapeles");
+  // Visual feedback instead of alert
+  const original = btn.innerHTML;
+  btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  btn.style.color = "#2ecc71";
+  setTimeout(() => {
+    btn.innerHTML = original;
+    btn.style.color = "";
+  }, 1500);
 }
 
 async function deletePassword(domain) {
@@ -121,10 +128,18 @@ async function deletePassword(domain) {
   }
 }
 
+const SVG_ICONS = {
+  eyeOpen: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  eyeClosed: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`,
+  copy: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+  trash: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
+  shield: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+};
+
 const createPasswordRowHTML = (pw) => {
   const breachClass = pw.breached ? "password-breached" : "";
   const breachBadge = pw.breached
-    ? `<span class="breach-badge" title="${pw.breaches} brechas encontradas">⚠️ ${pw.breaches}</span>`
+    ? `<span class="breach-badge" title="${pw.breaches} brechas encontradas">${SVG_ICONS.shield} ${pw.breaches}</span>`
     : "";
 
   return `
@@ -134,9 +149,9 @@ const createPasswordRowHTML = (pw) => {
       <td>
         <div class="password-cell">
           <input type="password" value="${pw.password}" readonly>
-          <button class="toggle-password">👁</button>
-          <button class="copy-password">📋</button>
-          <button class="delete-password">🗑️</button>
+          <button class="toggle-password btn-icon" title="Mostrar/ocultar">${SVG_ICONS.eyeOpen}</button>
+          <button class="copy-password btn-icon" title="Copiar">${SVG_ICONS.copy}</button>
+          <button class="delete-password btn-icon" title="Eliminar">${SVG_ICONS.trash}</button>
           ${breachBadge}
         </div>
       </td>
@@ -175,7 +190,7 @@ async function loadPasswords() {
         toggleBtn.addEventListener("click", () =>
           togglePassword(input, toggleBtn),
         );
-        copyBtn.addEventListener("click", () => copyPassword(input.value));
+        copyBtn.addEventListener("click", () => copyPassword(input.value, copyBtn));
         deleteBtn.addEventListener("click", () => deletePassword(domain));
       });
     } else {
@@ -201,27 +216,63 @@ async function loadPasswords() {
   }
 }
 
-async function connectToDevice(name) {
-  console.log("Conectando a dispositivo:", name);
+async function syncWithPeer(ip, port, deviceId) {
+  console.log("[SYNC] Sincronizando con:", deviceId, ip, port);
+
+  const btn = document.querySelector(`[data-peer-id="${deviceId}"]`);
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "⏳ Sincronizando...";
+  }
 
   try {
     const result = await sendMessageToBackground({
       type: "LINK_DEVICE",
-      name,
-      ip: "ip-test",
+      peer_ip: ip,
+      peer_port: port,
     });
 
-    console.log("resultado conexión", result);
+    console.log("[SYNC] Resultado:", result);
+
+    if (result && result.success) {
+      alert(`✅ Sincronización exitosa con ${deviceId}\n\nVault v${result.vault_version} — ${result.vault_entries_count} entradas`);
+      loadPasswords();
+      loadDevices();
+    } else {
+      alert(`❌ Error sincronizando con ${deviceId}:\n${result?.error || result?.message || "Error desconocido"}`);
+    }
   } catch (err) {
-    console.error("Error conectando a dispositivo:", err);
+    console.error("[SYNC] Error:", err);
+    alert(`❌ Error de conexión con ${deviceId}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Sincronizar";
+    }
   }
 }
 
-const createDeviceRowHTML = (dev) => {
+function formatTimeAgo(seconds) {
+  if (seconds < 60) return `hace ${seconds}s`;
+  if (seconds < 3600) return `hace ${Math.floor(seconds / 60)}m`;
+  return `hace ${Math.floor(seconds / 3600)}h`;
+}
+
+const createDeviceRowHTML = (peer) => {
+  const timeAgo = formatTimeAgo(peer.last_seen_ago_seconds);
+  const isRecent = peer.last_seen_ago_seconds < 60;
+  const statusDot = isRecent ? "🟢" : "🟡";
+
   return `
-    <div class="device-item">
-      <div>${dev.name}</div>
-      <button class="connect-device">Conectar</button>
+    <div class="device-card" data-ip="${peer.ip}" data-port="${peer.port}" data-peer-id="${peer.device_id}">
+      <div class="device-info">
+        <div class="device-name">${statusDot} ${peer.device_id}</div>
+        <div class="device-details">
+          <span class="device-ip">${peer.ip}:${peer.port}</span>
+          <span class="device-seen">${timeAgo}</span>
+        </div>
+      </div>
+      <span class="device-select-hint">Click para seleccionar</span>
     </div>
   `;
 };
@@ -230,46 +281,74 @@ async function loadDevices() {
   try {
     console.log("[DASHBOARD] Cargando dispositivos...");
 
-    const devices = await sendMessageToBackground({
+    const syncBtn = document.getElementById("sync-btn");
+    syncBtn.disabled = true;
+    syncBtn.textContent = "⏳ Buscando...";
+
+    const data = await sendMessageToBackground({
       type: "GET_DEVICES",
     });
 
-    console.log("[DASHBOARD] Dispositivos recibidos:", devices);
-    console.log("[DASHBOARD] Tipo de dispositivos:", typeof devices);
-    console.log("[DASHBOARD] Es array?", Array.isArray(devices));
+    console.log("[DASHBOARD] Datos sincronización:", data);
 
-    if (devices) {
-      const section = document.getElementById("devices-section");
-      const container = document.getElementById("devices-list");
+    // Mostrar info de mi dispositivo
+    const myInfo = document.getElementById("my-device-info");
+    if (data && data.device_id) {
+      myInfo.innerHTML = `
+        <span class="my-device-badge">📱 ${data.device_id}</span>
+        <span class="vault-badge">v${data.vault_version}</span>
+      `;
+    }
 
-      if (!Array.isArray(devices) || devices.length === 0) {
-        console.log("[DASHBOARD] No hay dispositivos o no es array");
-        container.innerHTML = `
-          <div style="text-align: center; padding: 20px; color: #999;">
-            No hay dispositivos disponibles
-          </div>
-        `;
-        section.classList.remove("hidden");
-        return;
-      }
+    const container = document.getElementById("devices-list");
 
-      console.log("[DASHBOARD] Renderizando", devices.length, "dispositivos");
-      container.innerHTML = devices
-        .map((dev) => createDeviceRowHTML(dev))
+    if (data && data.active_peers && data.active_peers.length > 0) {
+      container.innerHTML = data.active_peers
+        .map((peer) => createDeviceRowHTML(peer))
         .join("");
 
-      container.querySelectorAll(".device-item").forEach((item) => {
-        const btn = item.querySelector(".connect-device");
-        const name = item.querySelector("div").textContent;
-        btn.addEventListener("click", () => connectToDevice(name));
-      });
+      // Click en tarjeta → autocompletar IP/puerto en formulario
+      container.querySelectorAll(".device-card").forEach((card) => {
+        card.addEventListener("click", () => {
+          // Deseleccionar todas las tarjetas
+          container.querySelectorAll(".device-card").forEach(c => c.classList.remove("selected"));
+          // Seleccionar esta
+          card.classList.add("selected");
 
-      section.classList.remove("hidden");
+          // Auto-rellenar formulario
+          const ipInput = document.getElementById("manual-ip");
+          const portInput = document.getElementById("manual-port");
+          ipInput.value = card.dataset.ip;
+          portInput.value = card.dataset.port;
+
+          // Efecto visual de autocompletado
+          ipInput.classList.add("autofilled");
+          portInput.classList.add("autofilled");
+          setTimeout(() => {
+            ipInput.classList.remove("autofilled");
+            portInput.classList.remove("autofilled");
+          }, 2000);
+        });
+      });
     } else {
-      console.log("[DASHBOARD] devices es null o undefined");
+      container.innerHTML = `
+        <div class="no-devices">
+          No se encontraron peers en la red.<br>
+          <small>Asegúrate de que otros dispositivos estén ejecutando CryptMyPassword.</small>
+        </div>
+      `;
     }
+
+    syncBtn.disabled = false;
+    syncBtn.textContent = "🔍 Buscar peers";
   } catch (err) {
     console.error("[DASHBOARD] Error cargando dispositivos:", err);
+    document.getElementById("devices-list").innerHTML = `
+      <div class="no-devices error">❌ Error al buscar dispositivos</div>
+    `;
+    const syncBtn = document.getElementById("sync-btn");
+    syncBtn.disabled = false;
+    syncBtn.textContent = "🔍 Buscar peers";
   }
 }
 
@@ -383,4 +462,5 @@ async function verifyPasswords() {
 // Cargar al inicio
 document.addEventListener("DOMContentLoaded", () => {
   loadPasswords();
+  loadDevices();
 });
