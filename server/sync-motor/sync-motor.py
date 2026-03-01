@@ -11,15 +11,32 @@ from argon2.low_level import hash_secret_raw, Type
 
 from crypto_utils import CryptoUtils
 from vault import Vault, VaultEntry
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 # -------------------------------
 # CLIENTE P2P
 # -------------------------------
 class P2PClient:
-    def __init__(self, device_id, master_password, listen_port=5000, announcement_port=6000, known_peers=None):
+    def __init__(self, device_id, master_password, listen_port=5000, announcement_port=6000, known_peers=None, mongo_collection=None, encryption_key=None):
         self.device_id = device_id
         self.master_password = master_password
-        self.vault = Vault(device_id)
+        self.mongo_collection = mongo_collection
+        self.vault = Vault(device_id, mongo_collection=mongo_collection)
+
+        # Derivar clave de cifrado de contraseñas con Argon2id
+        if encryption_key:
+            self._entry_key = hash_secret_raw(
+                secret=encryption_key.encode(),
+                salt=b"CryptMyPassword_v1_salt",
+                time_cost=2,
+                memory_cost=2**16,
+                parallelism=2,
+                hash_len=32,
+                type=Type.ID
+            )
+            print(f"[{self.device_id}] \U0001f512 Clave de cifrado de contraseñas derivada con Argon2id")
+        else:
+            self._entry_key = None
 
         # Claves Ed25519
         self.device_priv = Ed25519PrivateKey.generate()
@@ -65,6 +82,28 @@ class P2PClient:
         self.multicast_broadcast_thread = threading.Thread(target=self.broadcast_announcements_via_multicast)
         self.multicast_broadcast_thread.daemon = True
         self.multicast_broadcast_thread.start()
+
+    # -------------------
+    # Cifrado/descifrado de contraseñas individuales (AES-GCM + Argon2id)
+    # -------------------
+    def _encrypt_password(self, plaintext: str) -> str:
+        """Cifra una contraseña con AES-GCM. Si no hay clave, devuelve tal cual."""
+        if not self._entry_key:
+            return plaintext
+        aesgcm = AESGCM(self._entry_key)
+        nonce = os.urandom(12)
+        ct = aesgcm.encrypt(nonce, plaintext.encode(), None)
+        return f"ENC:{nonce.hex()}:{ct.hex()}"
+
+    def _decrypt_password(self, encrypted: str) -> str:
+        """Descifra una contraseña. Si no está cifrada o no hay clave, devuelve tal cual."""
+        if not self._entry_key or not encrypted or not encrypted.startswith("ENC:"):
+            return encrypted
+        parts = encrypted.split(":", 2)
+        nonce = bytes.fromhex(parts[1])
+        ct = bytes.fromhex(parts[2])
+        aesgcm = AESGCM(self._entry_key)
+        return aesgcm.decrypt(nonce, ct, None).decode()
 
     # -------------------
     # Anuncio de presencia vía MULTICAST (cada 20 segundos)
@@ -218,22 +257,19 @@ class P2PClient:
     def generate_password(self):
         return "PLACEHOLDER_PASSWORD"
     
-    def add_new_password(self, site: str, user: str):
+    def add_new_password(self, site: str, user: str, password: str = None, _already_encrypted: bool = False):
         """
-        1️⃣ Genera la nueva contraseña
-        2️⃣ Crea la entrada en el vault con timestamp_mod
-        3️⃣ Actualiza metadata global (version + timestamp)
-        4️⃣ Cifra el vault con VaultKey derivada de MasterPassword + salt
-        5️⃣ Firma la metadata global
+        Agrega una nueva contraseña al vault (MongoDB).
+        Si no se proporciona password, se genera una.
         """
-        # 1️⃣ Generar contraseña
-        password = self.generate_password()
+        # 1️⃣ Generar contraseña si no se proporcionó
+        if password is None:
+            password = self.generate_password()
 
-        # 2️⃣ Crear entrada
-        entry = VaultEntry(site, user, password)
-        self.vault.entries.append(entry)        # se agrega la nueva entrada
-        self.vault.version += 1                  # incrementa la versión global
-        self.vault.timestamp = int(time.time())  # timestamp global actualizado
+        # 2️⃣ Cifrar y crear entrada, agregarla al vault (escribe en Mongo)
+        encrypted_pwd = password if _already_encrypted else self._encrypt_password(password)
+        entry = VaultEntry(site, user, encrypted_pwd)
+        self.vault.add_entry(entry)
 
         # 3️⃣ Salt aleatorio (si no existe)
         if not hasattr(self, "vault_salt"):
@@ -260,32 +296,31 @@ class P2PClient:
         self.vault_signature = self.device_priv.sign(message)
 
         print(f"[{self.device_id}] Nueva contraseña agregada para {site}:{user}")
-        return entry.password
+        return password
 
     def delete_password(self, site: str, user: str):
         """
-        Marca una contraseña como borrada (soft delete)
-        1️⃣ Busca la entrada por site y user
-        2️⃣ Cambia su estado de "activo" a "borrado"
-        3️⃣ Actualiza timestamp_mod de esa entrada
-        4️⃣ Actualiza metadata global (version + timestamp)
-        5️⃣ Cifra el vault
-        6️⃣ Firma la metadata global
+        Marca una contraseña como borrada (soft delete).
+        Opera directamente sobre MongoDB a través del Vault.
         """
         # 1️⃣ Buscar la entrada
-        entry = next((e for e in self.vault.entries if e.site == site and e.user == user), None)
+        entry = self.vault.get_entry(site, user)
         
         if not entry:
             print(f"[{self.device_id}] ❌ No se encontró contraseña para {site}:{user}")
             return False
         
-        # 2️⃣ Cambiar estado a borrado
-        entry.state = "borrado"
-        entry.timestamp_mod = int(time.time())
+        # 2️⃣ Cambiar estado a borrado en Mongo
+        now = int(time.time())
+        self.vault.update_entry(site, user, {
+            "state": "borrado",
+            "timestamp_mod": now
+        })
         
         # 3️⃣ Actualizar metadata global
         self.vault.version += 1
-        self.vault.timestamp = int(time.time())
+        self.vault.timestamp = now
+        self.vault._sync_metadata()
         
         # 4️⃣ Salt aleatorio (si no existe)
         if not hasattr(self, "vault_salt"):
@@ -315,6 +350,45 @@ class P2PClient:
         return True
 
     # -------------------
+    # Consultas de contraseñas (leen de MongoDB)
+    # -------------------
+    def get_all_passwords(self):
+        """Devuelve todas las contraseñas activas del vault (descifradas)."""
+        return [
+            {"domain": e.site, "user": e.user, "password": self._decrypt_password(e.password)}
+            for e in self.vault.get_all_active_entries()
+        ]
+
+    def get_password_by_domain(self, domain: str):
+        """Busca una contraseña activa por dominio (descifrada)."""
+        for e in self.vault.get_all_active_entries():
+            if e.site == domain:
+                return {"user": e.user, "password": self._decrypt_password(e.password)}
+        return None
+
+    def save_password(self, domain: str, user: str, password: str):
+        """
+        Guarda o actualiza una contraseña (cifrada). Si ya existe para ese dominio+user, la actualiza.
+        Si no existe, la crea.
+        """
+        encrypted_pwd = self._encrypt_password(password)
+        existing = self.vault.get_entry(domain, user)
+        if existing:
+            now = int(time.time())
+            self.vault.update_entry(domain, user, {
+                "password": encrypted_pwd,
+                "state": "activo",
+                "timestamp_mod": now
+            })
+            self.vault.version += 1
+            self.vault.timestamp = now
+            self.vault._sync_metadata()
+            print(f"[{self.device_id}] Contraseña actualizada para {domain}:{user}")
+            return password
+        else:
+            return self.add_new_password(domain, user, password=encrypted_pwd, _already_encrypted=True)
+
+    # -------------------
     # Vault cifrado / descifrado
     # -------------------
     def encrypt_vault(self):
@@ -329,6 +403,7 @@ class P2PClient:
         self.vault.version = vault_data["version"]
         self.vault.timestamp = vault_data["timestamp"]
         self.vault.entries = [VaultEntry(**e) for e in vault_data["entries"]]
+        self.vault._sync_metadata()
 
     # -------------------
     # Token temporal
@@ -411,32 +486,45 @@ class P2PClient:
     # -------------------
 
     def merge_vaults(self, peer_vault_encrypted):
-        """Descifra vault del peer (cifrado con master_password) y hace merge"""
+        """Descifra vault del peer (cifrado con master_password) y hace merge.
+        Escribe el resultado en MongoDB a través del Vault."""
         key = sha256(self.master_password.encode()).digest()
         peer_vault_json = CryptoUtils.aes_gcm_decrypt(key, peer_vault_encrypted)
         peer_vault_data = json.loads(peer_vault_json)
         print("vault que recibimos para el clonado " + peer_vault_json)
+
+        # Cargar entries actuales
+        current_entries = self.vault.entries
+
         for entry in peer_vault_data["entries"]:
-            match = next((e for e in self.vault.entries if e.site == entry["site"] and e.user == entry["user"]), None)
+            match = next((e for e in current_entries if e.site == entry["site"] and e.user == entry["user"]), None)
             if match:
                 if entry["timestamp_mod"] > match.timestamp_mod:
-                    match.password = entry["password"]
-                    match.state = entry["state"]
-                    match.timestamp_mod = entry["timestamp_mod"]
+                    self.vault.update_entry(entry["site"], entry["user"], {
+                        "password": entry["password"],
+                        "state": entry["state"],
+                        "timestamp_mod": entry["timestamp_mod"]
+                    })
             else:
                 new_entry = VaultEntry(entry["site"], entry["user"], entry["password"], entry["state"])
                 new_entry.timestamp_mod = entry["timestamp_mod"]
-                self.vault.entries.append(new_entry)
-        
+                # Añadir sin incrementar version (lo hacemos abajo)
+                if self.vault._collection is not None:
+                    self.vault._collection.update_one(
+                        {"_id": self.vault.device_id},
+                        {"$push": {"entries": new_entry.to_dict()}}
+                    )
+                else:
+                    self.vault._local_entries.append(new_entry)
+
         # Actualizar versión y timestamp
         if peer_vault_data["version"] > self.vault.version:
-            # El peer ya hizo merge primero, copia su versión (es la "canónica")
             self.vault.version = peer_vault_data["version"]
             self.vault.timestamp = peer_vault_data["timestamp"]
         else:
-            # Nosotros hacemos merge primero, incrementar versión
             self.vault.version = self.vault.version + 1
             self.vault.timestamp = int(time.time())
+        self.vault._sync_metadata()
 
     # -------------------
     # Comunicación P2P simple con sockets TCP
@@ -463,7 +551,15 @@ class P2PClient:
         try:
             # 1️⃣ Recibir primer mensaje: autenticación y metadata
             data = client_sock.recv(65536)
-            msg = json.loads(data.decode())
+            if not data:
+                client_sock.close()
+                return
+            try:
+                msg = json.loads(data.decode())
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                print(f"[{self.device_id}] ⚠️ Datos no válidos recibidos de {addr}, ignorando")
+                client_sock.close()
+                return
             
             # Validar token
             if not self.validate_auth_token(msg["auth_token"]):
