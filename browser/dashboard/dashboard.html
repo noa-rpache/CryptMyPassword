@@ -31,10 +31,10 @@
             </div>
         </section>
 
-        <!-- Sección: Sincronización P2P -->
+        <!-- Sección: Sincronización WiFi / LAN -->
         <section class="section sync-section">
             <div class="section-header">
-                <h2>Sincronización P2P</h2>
+                <h2>📡 Sincronización WiFi / LAN</h2>
                 <div id="my-device-info" class="my-device-info"></div>
             </div>
 
@@ -66,8 +66,36 @@
                             <label for="manual-port">Puerto</label>
                             <input type="number" id="manual-port" value="5000" min="1" max="65535" />
                         </div>
-                        <button id="manual-sync-btn" class="connect-btn-main">⚡ Sincronizar</button>
+                        <button id="manual-sync-btn" class="connect-btn-main">Sincronizar</button>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sección: Sincronización Bluetooth -->
+        <section class="section ble-section">
+            <div class="section-header">
+                <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;opacity:0.6"><path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11"/></svg>Sincronización Bluetooth</h2>
+            </div>
+
+            <div class="ble-grid">
+                <!-- Enviar por BLE -->
+                <div class="glass-card ble-card">
+                    <h3>Enviar contraseñas</h3>
+                    <p class="ble-card-desc">Envía todas las contraseñas del vault a un dispositivo cercano vía BLE.</p>
+                    <button id="ble-send-btn" class="ble-btn ble-btn-send">Enviar por Bluetooth</button>
+                    <div id="ble-send-status" class="ble-status hidden"></div>
+                </div>
+
+                <!-- Recibir por BLE -->
+                <div class="glass-card ble-card">
+                    <h3>Recibir contraseñas</h3>
+                    <p class="ble-card-desc">Activa el servidor BLE para recibir contraseñas desde otro dispositivo cercano.</p>
+                    <div class="ble-receive-controls">
+                        <button id="ble-receive-btn" class="ble-btn ble-btn-receive">Activar recepción</button>
+                        <button id="ble-stop-btn" class="ble-btn ble-btn-stop hidden">Detener recepción</button>
+                    </div>
+                    <div id="ble-receive-status" class="ble-status hidden"></div>
                 </div>
             </div>
         </section>
