@@ -8,8 +8,7 @@
     "scripts": [
       "env-loader.js",
       "config.js",
-      "background.js",
-      "dashboard/dashboard.js"
+      "background.js"
     ]
   },
   "content_scripts": [
