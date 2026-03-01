@@ -58,9 +58,9 @@ class P2PClient:
         # Configuración multicast
         self.multicast_group = "239.255.0.42"  # Grupo multicast privado (rango 239.0.0.0/8 = admin-scoped)
         self.multicast_port = 6003  # Puerto multicast para anuncios
+        self.local_ip = self._get_local_ip()  # IP LAN para forzar multicast en la interfaz correcta
+        print(f"[{self.device_id}] 🌐 IP local detectada: {self.local_ip}")
         
-        # Pre-inicializar parámetros DH (2048-bit) - esto tarda ~10-20s en la primera llamada
-        # Se hace aquí para evitar bloqueo durante la comunicación
 # No requiere inicialización con X25519 (instantáneo)
         print(f"[{self.device_id}] ✅ Criptografía X25519 lista (instantáneo)")
 
@@ -82,6 +82,18 @@ class P2PClient:
         self.multicast_broadcast_thread = threading.Thread(target=self.broadcast_announcements_via_multicast)
         self.multicast_broadcast_thread.daemon = True
         self.multicast_broadcast_thread.start()
+
+    @staticmethod
+    def _get_local_ip():
+        """Detecta la IP LAN real (no 127.0.0.1) usando el truco UDP."""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))  # No envía datos, solo determina la ruta
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return "0.0.0.0"
 
     # -------------------
     # Cifrado/descifrado de contraseñas individuales (AES-GCM + Argon2id)
@@ -129,6 +141,8 @@ class P2PClient:
             announcement = self.broadcast_announcement()
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 32)
+            # Forzar envío por la interfaz LAN (no loopback)
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(self.local_ip))
             sock.settimeout(2)
             sock.sendto(json.dumps(announcement).encode(), (self.multicast_group, self.multicast_port))
             sock.close()
@@ -165,8 +179,8 @@ class P2PClient:
             # Bind al puerto multicast
             sock.bind(("", self.multicast_port))
             
-            # Unirse al grupo multicast
-            mreq = socket.inet_aton(self.multicast_group) + socket.inet_aton("0.0.0.0")
+            # Unirse al grupo multicast en la interfaz LAN (no loopback)
+            mreq = socket.inet_aton(self.multicast_group) + socket.inet_aton(self.local_ip)
             sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
             
             print(f"[{self.device_id}] 📻 Escuchando anuncios en grupo multicast {self.multicast_group}:{self.multicast_port}")
